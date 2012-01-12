@@ -6,6 +6,7 @@ class UserController < ApplicationController
 
   before_filter :require_login, :only => [:edit, :save]
   before_filter :check_user, :only => [:edit, :save, :change_password]
+  before_filter :authenticate, :except => [:login, :do_login]
 
   def logout
     logger.info "Logging out: #{session[:login]}"

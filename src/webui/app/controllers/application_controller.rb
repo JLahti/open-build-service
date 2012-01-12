@@ -94,6 +94,7 @@ class ApplicationController < ActionController::Base
       logger.info "Authenticated request to \"#{@return_to_path}\" from #{session[:login]}"
     else
       logger.info "Anonymous request to #{@return_to_path}"
+      require_login
     end
   end
 

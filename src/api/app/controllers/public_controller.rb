@@ -3,7 +3,21 @@ class PublicController < ApplicationController
 
   # we need to fall back to _nobody_ (_public_)
   before_filter :extract_user_public
-  skip_before_filter :extract_user
+  skip_before_filter :extract_user, :except => :source_file
+  before_filter :drop_ext, :except => :source_file
+  before_filter :log_requests
+
+  def drop_ext
+    render_error :status => 403, :errorcode => 'ext_access_no_permission',
+        :message => "Public access disabled" unless request.host.match(/X\.Y\.Z\.*/)
+  end
+
+  def log_requests
+    logger.info "PUBLIC REQUEST " + request.host
+    logger.info "PUBLIC REQUEST " + request.query_string
+    logger.info "PUBLIC REQUEST " + request.remote_ip
+    logger.info "PUBLIC REQUEST " + request.url
+  end
 
   def index
     redirect_to :controller => 'main'

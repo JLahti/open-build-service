@@ -71,7 +71,7 @@ BSUtil::drop_privs_to($BSConfig::bsuser, $BSConfig::bsgroup);
 my $port = 5252;        #'RR'
 $port = $1 if $BSConfig::reposerver =~ /:(\d+)$/;
 
-my %cando = (
+my %cando_normal = (
 # this code needs to be handled via a worker/dispatcher capability system in future
   'i586'    => [          'i586',         'armv4l', 'armv5l', 'armv6l', 'armv7l', 'armv5el', 'armv6el', 'armv7el', 'armv7hl', 'armv8el', 'mips', 'mipsel',       'sh4'],
   'i686'    => [          'i586', 'i686', 'armv4l', 'armv5l', 'armv6l', 'armv7l', 'armv5el', 'armv6el', 'armv7el', 'armv7hl', 'armv8el', 'mips', 'mipsel',       'sh4'],
@@ -95,6 +95,15 @@ my %cando = (
   'mips64'  => ['mips64', 'mips'],
   'local'   => ['local'],
 );
+
+my %cando_native = (
+  'armv7l'  => [                          'armv4l', 'armv5l', 'armv6l', 'armv7l', 'armv5el', 'armv6el', 'armv7el'                                          ],
+  'i686'    => [          'i586', 'i686' ],
+  'x86_64'  => ['x86_64', 'i586', 'i686' ],
+  'local'   => ['local'],
+);
+
+my %cando = %cando_normal;
 
 # 4h build will add .5 to the load
 # 4h idle will half the load
@@ -362,12 +371,26 @@ while (1) {
   
   my @idle = grep {!/^\./} ls("$workersdir/idle");
   my %idlearch;
+
+  %cando = %cando_native;
+  my %idlearch_native;
   for my $idle (@idle) {
     my $harch = (split(':', $idle, 2))[0];
     for (@{$cando{$harch} || []}) {
       push @{$idlearch{$_}}, $idle;
+      push @{$idlearch_native{$_}}, $idle;
     }
   }
+  %cando = %cando_normal;
+  my %idlearch_normal;
+  for my $idle (@idle) {
+    my $harch = (split(':', $idle, 2))[0];
+    for (@{$cando{$harch} || []}) {
+      push @{$idlearch{$_}}, $idle;
+      push @{$idlearch_normal{$_}}, $idle;
+    }
+  }
+
   #print "finding jobs\n";
   my %jobs;
   my %maybesrcchange;
@@ -405,8 +428,16 @@ while (1) {
 	$info = {'project' => $projid, 'repository' => $repoid, 'package' => $packid, 'arch' => $arch};
       }
       my $prpa = "$info->{'project'}/$info->{'repository'}/$info->{'arch'}";
-      push @{$jobs{$prpa}}, $job;
+
       $info = $ic->{$job};
+      if($info->{'power'}){
+        next unless @{$idlearch_normal{$arch} || []};
+      }
+      else{
+        next unless @{$idlearch_native{$arch} || []};
+      }
+      push @{$jobs{$prpa}}, $job;
+
       if (!$info) {
 	$maybesrcchange{$prpa} = 1;
       } elsif ($info->{'reason'} && ($info->{'reason'} eq 'new build' || $info->{'reason'} eq 'source change')) {
@@ -563,6 +594,16 @@ while (1) {
 	  last;
 	}
       }
+
+      if($ic->{$job}->{'power'}){
+        %cando = %cando_normal;
+        %idlearch = %idlearch_normal;
+      }
+      else{
+        %cando = %cando_native;
+        %idlearch = %idlearch_native;
+      }
+
       my @idle = List::Util::shuffle(@{$idlearch{$arch} || []});
       last unless @idle;
       my %poweridle;

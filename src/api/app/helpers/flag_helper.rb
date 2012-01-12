@@ -22,7 +22,8 @@ module FlagHelper
      'useforbuild' => :enable,
      'binarydownload' => :enable,
      'sourceaccess' => :enable,
-     'access' => :enable 
+     'access' => :enable,
+     'power' => :enable 
    }
    def self.default_for(flag_type)
      return TYPES[flag_type.to_s].to_s

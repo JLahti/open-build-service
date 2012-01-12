@@ -82,6 +82,7 @@ our @flags = (
       [ 'binarydownload' => @disableenable ],
       [ 'sourceaccess' => @disableenable ],
       [ 'access' => @disableenable ],
+      [ 'power' => @disableenable ],
 );
 
 our $download = [
@@ -454,6 +455,7 @@ our $buildinfo = [
 	'bcnt',
 	'release',
 	'debuginfo',
+        'power',
       [ 'subpack' ],
       [ 'imagetype' ],
       [ 'dep' ],

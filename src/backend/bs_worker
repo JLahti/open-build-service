@@ -1502,6 +1502,10 @@ sub dobuild {
   }
   my $server = $buildinfo->{'srcserver'} || $srcserver;
   my $config = BSRPC::rpc("$server/getconfig", undef, "project=$projid", "repository=$repoid", @configpath);
+  if($buildinfo->{'power'})
+  {
+    $config = "%define _powerbuild 1\n" . $config;
+  }
   writestr("$buildroot/.build.config", undef, $config);
 
   my $release = $buildinfo->{'release'};

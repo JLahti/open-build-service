@@ -21,6 +21,8 @@
     debuginfo flags
   binarydownload
     binarydownload flags
+  power
+    power flags
 -->
 <grammar ns="http://buildservice.org/api" xmlns="http://relaxng.org/ns/structure/1.0" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
 
@@ -157,6 +159,11 @@
         <optional>
           <element ns="" name="access">
             <ref name="simple-flag-element"/>
+          </element>
+        </optional>
+        <optional>
+          <element ns="" name="power">
+            <ref name="flag-element"/>
           </element>
         </optional>
 

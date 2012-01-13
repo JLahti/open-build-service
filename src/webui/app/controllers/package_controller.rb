@@ -676,9 +676,7 @@ class PackageController < ApplicationController
     valid_http_methods :post
     required_parameters :filename
     filename = params[:filename]
-    # extra escaping of filename (workaround for rails bug)
-    escaped_filename = URI.escape filename, "+"
-    if @package.remove_file escaped_filename
+    if @package.remove_file filename
       flash[:note] = "File '#{filename}' removed successfully"
       @package.free_directory
       # TODO: remove patches from _link

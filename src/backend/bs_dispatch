@@ -53,13 +53,7 @@ use strict;
 my $nosrcchangescale = 3;	# -4.77
 
 my %powerpkgs;
-
-if ($BSConfig::powerpkgs) {
-  my $i = 1;
-  for (@{$BSConfig::powerpkgs || []}) {
-    $powerpkgs{$_} = $i++;
-  }
-}
+my $ppkgcount = 1;
 
 BSUtil::set_fdatasync_before_rename() unless $BSConfig::disable_data_sync || $BSConfig::disable_data_sync;
 
@@ -369,6 +363,17 @@ while (1) {
     $lastbuild{$prpa} = $l->[0];
   }
   
+  #Reset powerpkgs
+  for (keys %powerpkgs){
+        delete $powerpkgs{$_};
+  }
+  if ($BSConfig::powerpkgs) {
+    $ppkgcount = 1;
+    for (@{$BSConfig::powerpkgs || []}) {
+      $powerpkgs{$_} = $ppkgcount++;
+    }
+  }
+
   my @idle = grep {!/^\./} ls("$workersdir/idle");
   my %idlearch;
 
@@ -436,6 +441,10 @@ while (1) {
         next unless @{$idlearch_native{$arch} || []};
       }
       push @{$jobs{$prpa}}, $job;
+
+      if($info->{'power'}){
+        $powerpkgs{$info->{'package'}} = $ppkgcount++;
+      }
 
       $info = $ic->{$job};
       if (!$info) {
@@ -615,6 +624,17 @@ while (1) {
 	}
         if (@idle == 0) {
           print "Job can not be assigned on $arch due to lack of powerhosts: $job\n";
+          next;
+        }
+      }
+      else {
+	# reduce to normal hosts
+	for my $idle (splice @idle) {
+	  my $idlehost = (split(':', $idle, 2))[1];
+	  push @idle, $idle unless grep {$idlehost =~ /^$_/} @$BSConfig::powerhosts;
+	}
+        if (@idle == 0) {
+          print "Job can not be assigned on $arch due to lack of normal hosts: $job\n";
           next;
         }
       }

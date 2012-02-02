@@ -23,7 +23,8 @@ module FlagHelper
      'binarydownload' => :enable,
      'sourceaccess' => :enable,
      'access' => :enable,
-     'power' => :enable 
+     'cross' => :enable, 
+     'power' => :disable 
    }
    def self.default_for(flag_type)
      return TYPES[flag_type.to_s].to_s

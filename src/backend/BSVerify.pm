@@ -212,7 +212,7 @@ sub verify_proj {
   for my $link (@{$proj->{'link'} || []}) {
     verify_projid($link->{'project'});
   }
-  for my $f ('build', 'publish', 'debuginfo', 'useforbuild', 'power') {
+  for my $f ('build', 'publish', 'debuginfo', 'useforbuild', 'cross') {
     verify_disableenable($proj->{$f}) if $proj->{$f};
   }
   die('project must not have mountproject\n') if exists $proj->{'mountproject'};

@@ -353,11 +353,11 @@ sub enabled {
 # this is basically getconfig from the source server
 # we do not need any macros, just the config
 sub getconfig {
-  my ($arch, $path, $power) = @_;
-  $power ||= 0;
+  my ($arch, $path, $cross) = @_;
+  $cross ||= 0;
   my $config = '';
-  if($power){
-    $config .= "%define _powertools 1\n";
+  if($cross){
+    $config .= "%define _crosstools 1\n";
   }
   if (@$path) {
     my ($p, $r) = split('/', $path->[0], 2);
@@ -525,6 +525,8 @@ sub killbuilding {
 #         $reason        - what triggered the build
 #         $relsyncmax    - bcnt sync data
 #         $needed        - packages blocked by this job
+#         $cross         - cross build project/repository
+#         $power         - power build package
 #
 # output: $job           - the job identifier
 #         $error         - in case we could not start the job
@@ -535,7 +537,7 @@ sub killbuilding {
 # not that hard, was it?
 #
 sub set_building {
-  my ($projid, $repoid, $packid, $pdata, $info, $bconf, $subpacks, $edeps, $prpsearchpath, $reason, $relsyncmax, $needed, $power) = @_;
+  my ($projid, $repoid, $packid, $pdata, $info, $bconf, $subpacks, $edeps, $prpsearchpath, $reason, $relsyncmax, $needed, $cross, $power) = @_;
 
   my $prp = "$projid/$repoid";
   my $srcmd5 = $pdata->{'srcmd5'};
@@ -671,6 +673,7 @@ sub set_building {
     'bdep' => \@bdeps,
     'path' => $searchpath,
     'needed' => $needed,
+    'cross' => $cross,
     'power' => $power
   };
   $binfo->{'syspath'} = $syspath if $syspath;
@@ -2911,13 +2914,13 @@ sub rebuildkiwiimage {
     no warnings 'redefine';
     local *Build::expand = $ownexpand;
     use warnings 'redefine';
-    ($job, $joberror) = set_building($projid, $repoid, $packid, $pdata, $info, $bconf, [], $edeps, undef, $reason, $relsyncmax, 0, 0);
+    ($job, $joberror) = set_building($projid, $repoid, $packid, $pdata, $info, $bconf, [], $edeps, undef, $reason, $relsyncmax, 0, 0, 0);
   } else {
     # repo has a configured path, expand kiwi system with it
     my $prp = "$projid/$repoid";
     $bconf = getconfig($myarch, $prpsearchpath{$prp});
     return ('broken', 'no config') unless $bconf;	# should not happen
-    ($job, $joberror) = set_building($projid, $repoid, $packid, $pdata, $info, $bconf, [], $edeps, $prpsearchpath{$prp} || [], $reason, $relsyncmax, 0, 0);
+    ($job, $joberror) = set_building($projid, $repoid, $packid, $pdata, $info, $bconf, [], $edeps, $prpsearchpath{$prp} || [], $reason, $relsyncmax, 0, 0, 0);
   }
   if ($job) {
     return ('scheduled', $job);
@@ -5156,10 +5159,10 @@ while(1) {
     next;
   }
 
-  my $powerenabled = 0;
-  $powerenabled = enabled($repoid, $projpacks->{$projid}->{'power'}, $powerenabled);
+  my $crossenabled = 0;
+  $crossenabled = enabled($repoid, $projpacks->{$projid}->{'cross'}, $crossenabled);
 
-  my $bconf = getconfig($myarch, $prpsearchpath{$prp}, $powerenabled);
+  my $bconf = getconfig($myarch, $prpsearchpath{$prp}, $crossenabled);
   if (!$bconf) {
     # see if it is caused by a remote error
     my $error;
@@ -5542,6 +5545,7 @@ while(1) {
       }
     }
 
+    my $powerenabled = 0;
     if ($pdata->{'power'}) {
       $powerenabled = enabled($repoid, $pdata->{'power'}, $powerenabled);
     } 
@@ -5904,7 +5908,7 @@ relsynccheck:
         $needed->{$_}++ for map { $dep2src{$_} || $_ } @{$pdeps{$p}};
       }
     }
-    my ($job, $joberror) = set_building($projid, $repoid, $packid, $pdata, $info, $bconf, $subpacks{$info->{'name'}}, $pdeps{$packid}, $prpsearchpath{$prp}, $reason, $relsyncmax, $needed->{$packid} || 0, $powerenabled);
+    my ($job, $joberror) = set_building($projid, $repoid, $packid, $pdata, $info, $bconf, $subpacks{$info->{'name'}}, $pdeps{$packid}, $prpsearchpath{$prp}, $reason, $relsyncmax, $needed->{$packid} || 0, $crossenabled, $powerenabled);
     if (!$job) {
       # could not start job...
       if ($joberror =~ /^unresolvable: (.*)$/) {

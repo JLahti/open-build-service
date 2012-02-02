@@ -419,7 +419,7 @@ while (1) {
     @b = grep {!$locked{"$_:status"}} @b;
     for my $job (@b) {
       my $info;
-      if (0) {
+      if (1) {
         $info = readxml("$jobsdir/$arch/$job", $BSXML::buildinfo, 1);
       } else {
 	my $jn = $job;
@@ -429,8 +429,7 @@ while (1) {
       }
       my $prpa = "$info->{'project'}/$info->{'repository'}/$info->{'arch'}";
 
-      $info = $ic->{$job};
-      if($info->{'power'}){
+      if($info->{'cross'}){
         next unless @{$idlearch_normal{$arch} || []};
       }
       else{
@@ -438,6 +437,7 @@ while (1) {
       }
       push @{$jobs{$prpa}}, $job;
 
+      $info = $ic->{$job};
       if (!$info) {
 	$maybesrcchange{$prpa} = 1;
       } elsif ($info->{'reason'} && ($info->{'reason'} eq 'new build' || $info->{'reason'} eq 'source change')) {
@@ -595,7 +595,7 @@ while (1) {
 	}
       }
 
-      if($ic->{$job}->{'power'}){
+      if($ic->{$job}->{'cross'}){
         %cando = %cando_normal;
         %idlearch = %idlearch_normal;
       }

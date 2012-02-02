@@ -10,7 +10,10 @@ class Issue < ActiveRecord::Base
     issue = Issue.find_by_name name, :conditions => [ "issue_tracker_id = BINARY ?", issue_tracker.id ]
     raise IssueNotFoundError.new( "Error: Issue '#{name}' not found." ) unless issue
     
-    issue.fetch_updates if force_update
+    if force_update
+      issue.fetch_updates
+      return Issue.find_by_name name, :conditions => [ "issue_tracker_id = BINARY ?", issue_tracker.id ]
+    end
 
     return issue
   end
@@ -30,7 +33,10 @@ class Issue < ActiveRecord::Base
     issue = Issue.create( :name => name, :issue_tracker => issue_tracker ) if issue.nil? and create_missing
 
     # force update
-    issue.fetch_updates if force_update and not issue.nil?
+    if force_update and not issue.nil?
+      issue.fetch_updates
+      return Issue.find_by_name name, :conditions => [ "issue_tracker_id = BINARY ?", issue_tracker.id ]
+    end
 
     return issue
   end
@@ -45,7 +51,7 @@ class Issue < ActiveRecord::Base
 
   def self.bugzilla_state( string )
     return self.states['OPEN'] if [ 'NEW', 'NEEDINFO', 'REOPENED', 'ASSIGNED' ].include? string
-    return self.states['CLOSED'] if [ 'RESOLVED', 'CLOSED' ].include? string
+    return self.states['CLOSED'] if [ 'RESOLVED', 'CLOSED', 'VERIFIED' ].include? string
     return self.states['UNKNOWN']
   end
 
@@ -61,13 +67,17 @@ class Issue < ActiveRecord::Base
     self.issue_tracker.fetch_issues([self])
   end
 
+  def long_name
+    return self.issue_tracker.long_name.gsub(/%s/, self.name)
+  end
+
   def render_body(node, change=nil)
     node.issue({:change => change}) do |issue|
       issue.created_at(self.created_at)
       issue.updated_at(self.updated_at)   if self.updated_at
       issue.name(self.name)
       issue.issue_tracker(self.issue_tracker.name)
-      issue.long_name(self.long_name)      if self.long_name
+      issue.long_name(self.long_name)
       issue.url(self.issue_tracker.show_url.gsub('@@@', self.name))
       issue.state(self.state)             if self.state
       issue.description(self.description) if self.description

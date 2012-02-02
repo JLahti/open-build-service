@@ -180,6 +180,7 @@ class PackageController < ApplicationController
     else
       @revision = Package.current_rev(@project, @package)
     end
+    @cleanup_source = @project.value('name').include?(':branches:') # Rather ugly decision finding...
   end
   def submit_request
     if params[:targetproject].nil? or params[:targetproject].empty?
@@ -189,6 +190,9 @@ class PackageController < ApplicationController
 
     begin
       params[:type] = "submit"
+      if not params[:sourceupdate] and params[:project].include?(':branches:')
+        params[:sourceupdate] = 'update' # Avoid auto-removal of branch
+      end
       req = BsRequest.new(params)
       req.save(:create => true)
     rescue ActiveXML::Transport::Error, ActiveXML::Transport::NotFoundError => e
@@ -215,14 +219,10 @@ class PackageController < ApplicationController
   end
 
   def service_parameter
-    begin
-      @serviceid = params[:serviceid]
-      @servicename = params[:servicename]
-      @services = find_cached(Service,  :project => @project, :package => @package )
-      @parameters = @services.getParameters(@serviceid)
-    rescue
-      @parameters = []
-    end
+    @serviceid = params[:serviceid]
+    @servicename = params[:servicename]
+    @services = find_cached(Service,  :project => @project, :package => @package )
+    @parameters = @services.getParameters(@serviceid)
   end
 
   def update_parameters
@@ -302,7 +302,7 @@ class PackageController < ApplicationController
       @rev = @last_rev
     end
 
-    path = "/source/#{CGI.escape(params[:project])}/#{CGI.escape(params[:package])}?cmd=diff&view=xml"
+    path = "/source/#{CGI.escape(params[:project])}/#{CGI.escape(params[:package])}?cmd=diff&view=xml&withissues=1"
     path += "&linkrev=#{CGI.escape(params[:linkrev])}" if params[:linkrev]
     path += "&rev=#{CGI.escape(@rev)}" if @rev
     path += "&oproject=#{CGI.escape(@oproject)}" if @oproject
@@ -428,10 +428,15 @@ class PackageController < ApplicationController
       result_project = result.find_first( "/status/data[@name='targetproject']" ).text
       result_package = result.find_first( "/status/data[@name='targetpackage']" ).text
     rescue ActiveXML::Transport::Error => e
-      message, code, api_exception = ActiveXML::Transport.extract_error_message e
-      flash[:error] = message
-      redirect_to :controller => 'package', :action => 'show',
-        :project => params[:project], :package => params[:package] and return
+      message, code, _ = ActiveXML::Transport.extract_error_message e
+      if code == "double_branch_package"
+        flash[:note] = "You already branched the package and got redirected to it instead"
+        bprj, bpkg = message.split("exists: ")[1].split('/', 2) # Hack to find out branch project / package
+        redirect_to :controller => 'package', :action => 'show', :project => bprj, :package => bpkg and return
+      else
+        flash[:error] = message
+        redirect_to :controller => 'package', :action => 'show', :project => params[:project], :package => params[:package] and return
+      end
     end
     flash[:success] = "Branched package #{@project} / #{@package}"
     redirect_to :controller => 'package', :action => 'show',

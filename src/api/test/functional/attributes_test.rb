@@ -30,7 +30,7 @@ class AttributeControllerTest < ActionController::IntegrationTest
 
     get "/attribute/OBS"
     assert_response :success
-    count = 10
+    count = 13
     assert_tag :tag => 'directory', :attributes => { :count => count }
     assert_tag :children => { :count => count }
     assert_tag :child => { :tag => 'entry', :attributes => { :name => "Maintained" } }
@@ -161,7 +161,7 @@ class AttributeControllerTest < ActionController::IntegrationTest
 
     get "/attribute/OBS"
     assert_response :success
-    count = 10
+    count = 13
     assert_tag :tag => 'directory', :attributes => { :count => count }
     assert_tag :children => { :count => count }
     assert_tag :child => { :tag => 'entry', :attributes => { :name => "Maintained" } }
@@ -181,7 +181,7 @@ class AttributeControllerTest < ActionController::IntegrationTest
             </attribute></attributes>"
     post "/source/home:tom/_attribute", data
     assert_response 403
-    assert_select "status[code] > summary", /Attribute: 'OBS:Maintained' has 1 values, but only 0 are allowed/
+    assert_select "status[code] > summary", /attribute 'OBS:Maintained' has 1 values, but only 0 are allowed/
   
     data = "<attributes><attribute namespace='OBS' name='Maintained'></attribute></attributes>"
     post "/source/home:tom/_attribute", data
@@ -266,7 +266,7 @@ class AttributeControllerTest < ActionController::IntegrationTest
             </attribute></attributes>"
     post "/source/kde4/kdelibs/_attribute", data
     assert_response 403
-    assert_select "status[code] > summary", /Attribute: 'OBS:Maintained' has 1 values, but only 0 are allowed/
+    assert_select "status[code] > summary", /attribute 'OBS:Maintained' has 1 values, but only 0 are allowed/
 
     data = "<attributes><attribute namespace='OBS' name='Maintained'></attribute></attributes>"
     post "/source/kde4/kdelibs/_attribute", data

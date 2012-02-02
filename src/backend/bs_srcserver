@@ -203,6 +203,7 @@ sub runservice {
   my $packid = $rev->{'package'};
   die("No project defined for source update!") unless defined $projid;
   die("No package defined for source update!") unless defined $packid;
+  return if $packid eq '_project';
 
   if ($files->{'/SERVICE'}) {
     # check serialization
@@ -771,6 +772,10 @@ sub getrev {
     if (!$rev && -d "$projectsdir/$projid.pkg/$packid.git") {
       return getrev_git($projid, $packid);
     }
+    if (!$rev && ($packid eq '_project' && -e "$projectsdir/$projid.conf")) {
+      addrev_meta({'user' => 'internal', 'comment' => 'initial commit'}, $projid, undef, undef, undef, undef, 'rev');
+      $rev = BSFileDB::fdb_getlast("$projectsdir/$projid.pkg/$packid.rev", $srcrevlay);
+    }
     $rev = {'srcmd5' => $emptysrcmd5} unless $rev;
   } elsif ($rev =~ /^[0-9a-f]{32}$/) {
     return undef unless -e "$projectsdir/$projid.pkg/$packid.rev" || -e "$projectsdir/$projid.pkg/$packid.mrev";
@@ -872,7 +877,7 @@ sub addrev {
   # check if the commit will need a service run
   my $servicemark;
   delete $files->{'/SERVICE'};	# just in case...
-  if (!$BSConfig::old_style_services) {
+  if (!$BSConfig::old_style_services && $packid ne '_project') {
     if (!$cgi->{'noservice'}) {
       # we do not want any generated files in the commit!
       delete $files->{$_} for grep {/^_service[:_]/} keys %$files;
@@ -969,7 +974,9 @@ sub addrev {
   }
   
   my $rev_old = getrev($projid, $packid);
+  $rev_old->{'keepsignkey'} = 1;
   my $files_old = lsrev($rev_old);
+  delete $rev_old->{'keepsignkey'};
   my $filestr = BSNotify::generate_commit_flist($files_old, $files);
 
   $rev->{'version'} = $cgi->{'version'} if defined $cgi->{'version'};
@@ -1116,11 +1123,14 @@ sub lsrev {
   } else {
     die("bad srcmd5 '$srcmd5'\n") if $srcmd5 !~ /^[0-9a-f]{32}$/;
     my $treedir = $BSConfig::nosharedtrees ? "$treesdir/$projid/$packid" : "$treesdir/$packid";
-    if ($BSConfig::nosharedtrees && $BSConfig::nosharedtrees == 2 && ! -e "$treedir/$srcmd5-MD5SUMS") {
+    if ($BSConfig::nosharedtrees && $BSConfig::nosharedtrees == 2 && ! -e "$treedir/$srcmd5-MD5SUMS" && -e "$srcrep/$packid/$srcmd5-MD5SUMS") {
       $treedir = "$srcrep/$packid";
     }
     if (!open(F, '<', "$treedir/$srcmd5-MD5SUMS")) {
       return {'_linkerror' => $srcmd5} if -e "$srcrep/$packid/$srcmd5-_linkerror";
+      my $error = readstr("$treedir/$srcmd5-_serviceerror", 1);
+      chomp $error if $error;
+      die(str2utf8xml("$error\n")) if $error && $error ne '';
       die("$projid/$packid/$srcmd5: not in repository. Either not existing or misconfigured server setting for '\$nosharedtrees' setting in BSConfig.pm\n");
     }
   }
@@ -1129,7 +1139,7 @@ sub lsrev {
   chomp @files;
   my $files = {map {substr($_, 34) => substr($_, 0, 32)} @files};
   # hack: do not list _signkey in project meta
-  delete $files->{'_signkey'} if $packid eq '_project';
+  delete $files->{'_signkey'} if $packid eq '_project' && !$rev->{'keepsignkey'};
   if ($linkinfo) {
     $linkinfo->{'lsrcmd5'} = $files->{'/LOCAL'} if $files->{'/LOCAL'};
     $linkinfo->{'srcmd5'} = $files->{'/LINK'} if $files->{'/LINK'};
@@ -1730,6 +1740,10 @@ sub handleservice {
     $sfiles = lsrev($rev);
   } elsif (-e "$treedir/$smd5-MD5SUMS") {
     $sfiles = lsrev($rev);
+  } elsif (! -e "$projectsdir/$rev->{'project'}.pkg/$rev->{'package'}.xml") {
+    # not our own package, don't run service. try getrev/lsrev instead.
+    my $rrev = getrev($rev->{'project'}, $rev->{'package'}, $smd5);
+    $sfiles = lsrev($rrev);
   }
   if ($sfiles) {
     if ($sfiles->{'_service_error'}) {
@@ -1739,6 +1753,7 @@ sub handleservice {
     }
     return $sfiles;
   }
+  # don't have it yet
   my $error = readstr("$treedir/$smd5-_serviceerror", 1);
   chomp $error if $error;
   die(str2utf8xml("$error\n")) if $error && $error ne '';
@@ -2034,7 +2049,9 @@ sub addrev_meta {
   if ($rev) {
     $rev->{'project'} = $projid;
     $rev->{'package'} = $rpackid;
+    $rev->{'keepsignkey'} = 1;
     $files = lsrev($rev);
+    delete $rev->{'keepsignkey'};
   } else {
     $files = {};
     if ((defined($packid) && -e "$projectsdir/$projid.pkg/$packid.xml") || (!defined($packid) && -e "$projectsdir/$projid.xml")) {
@@ -2270,6 +2287,9 @@ sub getprojpack {
       $remotemap->{$projid} = {%$r, 'proto' => 1} if $r;
     }
     next unless $proj;
+    for (qw{kind}) {
+      $jinfo->{$_} = $proj->{$_} if exists $proj->{$_};
+    }
 
     my %expandedrepos;
 
@@ -2817,7 +2837,11 @@ sub putproject {
 
   my %except = map {$_ => 1} qw{title description person group url attributes};
   if (!identical($oldproj, $proj, \%except)) {
-    notify_repservers('project', $projid);
+    if ($cgi->{'lowprio'}) {
+      notify_repservers('lowprioproject', $projid);
+    } else {
+      notify_repservers('project', $projid);
+    }
   }
 
   $proj = readproj($projid);
@@ -4677,7 +4701,7 @@ sub sourcebranch {
   my $opackid = exists($cgi->{'opackage'}) ? $cgi->{'opackage'} : $packid;
   my $orev = $cgi->{'orev'};
   die("cannot branch myself\n") if $oprojid eq $projid && $opackid eq $packid;
-  $orev = getrev($oprojid, $opackid, undef, undef, $cgi->{'missingok'});
+  $orev = getrev($oprojid, $opackid, defined($orev) ? $orev : 'latest', undef, $cgi->{'missingok'});
   $orev->{'linkrev'} = $cgi->{'olinkrev'} if $cgi->{'olinkrev'};
   my $files = lsrev_expanded($orev);	# modifies srcmd5, thus also needed for keepcontent case
   if ($cgi->{'keepcontent'}) {
@@ -5418,7 +5442,8 @@ sub binary_key_to_data {
   } elsif ($name =~ s/_([^_]+)_[^_]+\.deb$//) {
     $versrel = $1;
   }
-  my ($version, $release) = $versrel =~ /^(.*)(?:-([^-]*))?/;
+  my ($version, $release) = ($versrel, undef);
+  ($version, $release) = ($1, $2) if $version =~ /^(.*)-(.*?)$/;
   my $arch = pop(@p);
   while (@p > 1 && $p[0] =~ /:$/) {
     splice(@p, 0, 2, "$p[0]$p[1]");
@@ -5498,7 +5523,7 @@ sub search_published_binary_id {
   my ($cgi, $match) = @_;
   my $binarydb = BSDB::opendb($extrepodb, 'binary');
   $binarydb->{'allkeyspath'} = 'name';
-  $binarydb->{'noindex'} = {'version' => 1, 'release' => 1, 'versrel' => 1, 'arch' => 1, 'project' => 1, 'repository' => 1, 'package' => 1, 'type' => 1, 'path/project' => 1, 'path/repository' => 1};
+  $binarydb->{'noindex'} = {'version' => 1, 'release' => 1, 'versrel' => 1, 'arch' => 1, 'project' => 1, 'repository' => 1, 'package' => 1, 'type' => 1, 'path/project' => 1, 'path/repository' => 1, 'baseproject' => 1};
   $binarydb->{'indexfunc'} = {'project' => \&published_projectindexfunc };
   $binarydb->{'fetch'} = \&binary_key_to_data;
   $binarydb->{'cheapfetch'} = 1;
@@ -5507,6 +5532,7 @@ sub search_published_binary_id {
   my $data = BSXPath::match($rootnode, $match) || [];
   # epoch?
   @$data = sort {Build::Rpm::verscmp($b->{'version'}, $a->{'version'}) || $a->{'name'} cmp $b->{'name'} || $a->{'arch'} cmp $b->{'arch'}} @$data;
+  delete $_->{'versrel'} for @$data;
   my $res = {};
   $res->{'matches'} = @$data;
   $res->{'limited'} = 'true' if $limit && @$data > $limit;
@@ -5789,9 +5815,36 @@ sub createrequest {
 
 sub getrequest {
   my ($cgi, $id) = @_;
-  my $req = readxml("$requestsdir/$id", $BSXML::request, 1);
-  $req ||= readxml("$oldrequestsdir/$id", $BSXML::request, 1);
-  die("404 no such request '$id'\n") unless $req;
+  local *F;
+  my $rdir = $requestsdir;
+  if (!open(F, '<', "$rdir/$id")) {
+    $rdir = $oldrequestsdir;
+    if (!open(F, '<', "$rdir/$id")) {
+      die("404 no such request '$id'\n");
+    }
+  }
+  my $reqxml = '';
+  1 while sysread(F, $reqxml, 8192, length($reqxml));
+  my @s = stat(F);
+  close F;
+  die unless @s;
+  my $req = XMLin($BSXML::request, $reqxml);
+  my $key;
+  if ($cgi->{'withkey'} || $cgi->{'oldkey'}) {
+    $key = Digest::MD5::md5_hex("$s[9]/$s[7]/$s[1]");
+    $req->{'key'} = $key if $cgi->{'withkey'};
+    if ($cgi->{'oldkey'} && $key eq $cgi->{'oldkey'}) {
+      if (!$BSStdServer::isajax) {
+	my @args;
+	push @args, "withkey=1" if $cgi->{'withkey'};
+	push @args, "oldkey=$cgi->{'oldkey'}" if $cgi->{'oldkey'};
+	BSHandoff::handoff($ajaxsocket, "/request/$id", undef, @args);
+	exit(0);
+      }
+      BSWatcher::addfilewatcher("$rdir/$id");
+      return undef;
+    }
+  }
   return ($req, $BSXML::request);
 }
 
@@ -6572,7 +6625,7 @@ my $dispatches = [
 
   'DELETE:/source/$project user:? comment:? requestid:num?' => \&delproject,
   '/source/$project/_meta rev?' => \&getproject,
-  'PUT:/source/$project/_meta user:? comment:? requestid:num?' => \&putproject,
+  'PUT:/source/$project/_meta user:? comment:? requestid:num? lowprio:bool?' => \&putproject,
 
   '/source/$project/_pubkey rev?' => \&getpubkey,
   'DELETE:/source/$project/_pubkey user:? comment:?' => \&deletekey,
@@ -6586,7 +6639,7 @@ my $dispatches = [
   'POST:/source/$project/$package cmd=diff rev? orev:rev? oproject:project? opackage:package? expand:bool? linkrev? olinkrev:? unified:bool? missingok:bool? meta:bool? file:filename* filelimit:num? tarlimit:num? view:? withissues:bool? onlyissues:bool?' => \&sourcediff,
   'POST:/source/$project/$package cmd=linkdiff rev? linkrev? unified:bool? file:filename* filelimit:num? tarlimit:num? view:? withissues:bool? onlyissues:bool?' => \&linkdiff,
   'POST:/source/$project/$package cmd=servicediff rev? unified:bool? file:filename* filelimit:num? tarlimit:num? view:? withissues:bool? onlyissues:bool?' => \&servicediff,
-  'POST:/source/$project/$package cmd=commit rev? user:? comment:? keeplink:bool? repairlink:bool? linkrev? setrev:bool? noservice:bool?' => \&sourcecommit,
+  'POST:/source/$project/$package cmd=commit rev? user:? comment:? keeplink:bool? repairlink:bool? linkrev? setrev:bool? requestid:num? noservice:bool?' => \&sourcecommit,
   'POST:/source/$project/$package cmd=commitfilelist rev? user:? comment:? keeplink:bool? repairlink:bool? linkrev? setrev:bool? requestid:num? time:num? version:? vrev:? noservice:bool? servicemark:?' => \&sourcecommitfilelist,
   'POST:/source/$project/$package cmd=copy rev? user:? comment:? orev:rev? oproject:project? opackage:package? expand:bool? keeplink:bool? repairlink:bool? linkrev? setrev:linkrev? olinkrev:linkrev? requestid:num? dontupdatesource:bool? noservice:bool? withvrev:bool?' => \&sourcecopy,
   'POST:/source/$project/$package cmd=branch rev? user:? comment:? orev:rev? oproject:project? opackage:package? olinkrev:linkrev? requestid:num? force:bool? keepcontent:bool? missingok:bool?' => \&sourcebranch,
@@ -6682,7 +6735,7 @@ my $dispatches = [
   'POST:/request cmd: user:?' => \&createrequest,
   '/request' => \&getrequestlist,
   'POST:/request/$id:num cmd: newstate:? user:? comment:? by_user:? by_group:? by_project:? by_package:? superseded_by:?' => \&postrequest,
-  '/request/$id:num' => \&getrequest,
+  '/request/$id:num withkey:bool? oldkey:md5?' => \&getrequest,
   'PUT:/request/$id:num user:?' => \&putrequest,
   'DELETE:/request/$id:num' => \&delrequest,
   '/search/request $match: limit:num?' => \&search_request,
@@ -6703,6 +6756,7 @@ my $dispatches_ajax = [
   '/lastevents $filter:* start:num? obsname:?' => \&worker_lastevents,
   '/source/$project/$package rev' => \&getfilelist_ajax,
   '/source/$project/$package:package/$filename rev?' => \&getfile,
+  '/request/$id:num withkey:bool? oldkey:md5?' => \&getrequest,
 ];
 
 ####################################################################

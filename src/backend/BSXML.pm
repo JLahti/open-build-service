@@ -254,6 +254,7 @@ our $projpack = [
     'repoid',
      [[ 'project' =>
 	    'name',
+	    'kind',
 	     [],
 	    'title',
 	    'description',
@@ -661,13 +662,6 @@ our $packstatuslist = [
      ]],
 ];
 
-our $packstatuslistlist = [
-    'packstatuslistlist' =>
-    'state',
-    'retryafter',
-     [ $packstatuslist ],
-];
-
 our $linkpatch = [
     '' =>
       [ 'add' =>
@@ -850,7 +844,9 @@ our $result = [
 	'project',
 	'repository',
 	'arch',
-	'state', # pra state, can be "unknown", "broken", "scheduling", "blocked", "building", "finished", "publishing", "published" or "unpublished"
+	'code',	# pra state, can be "unknown", "broken", "scheduling", "blocked", "building", "finished", "publishing", "published" or "unpublished"
+	'state', # old name of 'code', to be removed
+	'details',
 	'dirty', # marked for re-scheduling if element exists, state might not be correct anymore
       [ $buildstatus ],
       [ $binarylist ],
@@ -988,6 +984,7 @@ our $binary_id = [
 	'package',
 	'repository',
 	'version',
+	'release',
 	'arch',
 	'filename',
 	'filepath',
@@ -1011,6 +1008,8 @@ our $request = [
     'request' =>
 	'id',
 	'type',		# obsolete, still here to handle OBS pre-1.5 requests
+	'key',		# cache key, not really in request
+	'retryafter',	# timed out waiting for a key change
      [[ 'action' =>
 	    'type',	# currently submit, delete, change_devel, add_role, maintenance_release, maintenance_incident, set_bugowner
 	  [ 'source' =>
@@ -1365,11 +1364,14 @@ our $issue_trackers = [
 	    'name',
 	    'description',
 	    'kind',
+            'long-name',
+            'enable-fetch',
 	    'regex',
 	    'user',
 #	    'password',    commented out on purpose, should not reach backend
 	    'show-url',
 	    'url',
+            'issues-updated',
      ]],
 ];
 

@@ -80,24 +80,34 @@ module ProjectHelper
     return match[0]
   end
 
-  def colored_patchinfo_rating(rating)
-    color = ""
+  def patchinfo_rating_color(rating)
     case rating.to_s
-      when "low" then color = "green"
-      when "moderate" then color = "olive"
-      when "important" then color = "red"
-      when "critical" then color = "maroon"
+    when 'low' then return 'green'
+    when 'moderate' then return 'olive'
+    when 'important' then return 'red'
+    when 'critical' then return 'maroon'
+    else return ''
     end
-    return "<span style=\"color: #{color};\">#{rating}</span>"
   end
 
-  def colored_patchinfo_category(category)
-    color = ""
+  def patchinfo_category_color(category)
     case category.to_s
-      when "recommended" then color = "green"
-      when "security" then color = "maroon"
+    when 'optional' then return 'olive'
+    when 'recommended' then return 'green'
+    when 'security' then return 'maroon'
+    else return ''
     end
-    return "<span style=\"color: #{color};\">#{category}</span>"
+  end
+
+  def incident_issue_color(patchinfo_issues, package_issues)
+    return 'red' if package_issues == 0
+    if patchinfo_issues == package_issues
+      return 'green'
+    elsif patchinfo_issues < package_issues
+      return 'olive'
+    else
+      return 'red'
+    end
   end
 
 end

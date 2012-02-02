@@ -227,6 +227,21 @@ class DbPackage < ActiveRecord::Base
       return ret
     end
 
+    def find_by_project_and_kind( project, kind )
+      sql =<<-END_SQL
+      SELECT pack.*
+      FROM db_packages pack
+      LEFT OUTER JOIN db_projects pro ON pack.db_project_id = pro.id
+      LEFT OUTER JOIN db_package_kinds kinds ON kinds.db_package_id = pack.id
+      WHERE pro.name = BINARY ? AND kinds.kind = BINARY ?
+      END_SQL
+
+      result = DbPackage.find_by_sql [sql, project.to_s, kind.to_s]
+      ret = result[0]
+      return nil unless DbPackage.check_access?(ret)
+      return ret
+    end
+
     def find_by_attribute_type( attrib_type, package=nil )
       # One sql statement is faster than a ruby loop
       # attribute match in package or project
@@ -371,7 +386,7 @@ class DbPackage < ActiveRecord::Base
           self.db_package_kinds.create :kind => 'patchinfo'
         end
         if xml.elements["/directory/entry/@name='_aggregate'"]
-          self.db_package_kinds.create :type => 'aggregate'
+          self.db_package_kinds.create :kind => 'aggregate'
         end
         if xml.elements["/directory/entry/@name='_link'"]
           self.db_package_kinds.create :kind => 'link'
@@ -388,7 +403,7 @@ class DbPackage < ActiveRecord::Base
         xml = REXML::Document.new(patchinfo.body.to_s)
         xml.root.elements.each('issue') { |i|
           issue = Issue.find_or_create_by_name_and_tracker( i.attributes['id'], i.attributes['tracker'] )
-          self.db_package_issues.create( :issue => issue )
+          self.db_package_issues.create( :issue => issue, :change => "kept" )
         }
       end
     else
@@ -661,7 +676,7 @@ class DbPackage < ActiveRecord::Base
     end
     # verify the number of allowed values
     if atype.value_count and attrib.has_element? :value and atype.value_count != attrib.each_value.length
-      raise SaveError, "Attribute: '#{attrib.namespace}:#{attrib.name}' has #{attrib.each_value.length} values, but only #{atype.value_count} are allowed"
+      raise SaveError, "attribute '#{attrib.namespace}:#{attrib.name}' has #{attrib.each_value.length} values, but only #{atype.value_count} are allowed"
     end
     if atype.value_count and atype.value_count > 0 and not attrib.has_element? :value
       raise SaveError, "attribute '#{attrib.namespace}:#{attrib.name}' requires #{atype.value_count} values, but none given"
@@ -809,11 +824,24 @@ class DbPackage < ActiveRecord::Base
   def render_issues_axml(params)
     builder = Builder::XmlMarkup.new( :indent => 2 )
 
+    filter_changes = states = nil
+    filter_changes = params[:changes].split(",") if params[:changes]
+    states = params[:states].split(",") if params[:states]
+    login = params[:login]
+
     xml = builder.package( :project => self.db_project.name, :name => self.name ) do |package|
       self.db_package_kinds.each do |k|
         package.kind(k.kind)
       end
       self.db_package_issues.each do |i|
+        next if filter_changes and not filter_changes.include? i.change
+        next if states and (not i.issue.state or not states.include? i.issue.state)
+        o = nil
+        if i.issue.owner_id
+          # self.owner must not by used, since it is reserved by rails
+          o = User.find_by_id i.issue.owner_id
+        end
+        next if login and (not o or not login == o.login)
         i.issue.render_body(package, i.change)
       end
     end

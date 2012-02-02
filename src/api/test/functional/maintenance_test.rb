@@ -85,7 +85,168 @@ class MaintenanceTests < ActionController::IntegrationTest
     assert_response :success
   end
 
-  def test_mbranch_and_maintenance_request
+  def test_mbranch_and_maintenance_per_package_request
+    # setup maintained attributes
+    prepare_request_with_user "maintenance_coord", "power"
+    # single packages
+    post "/source/BaseDistro2.0/pack2/_attribute", "<attributes><attribute namespace='OBS' name='Maintained' /></attributes>"
+    assert_response :success
+    post "/source/BaseDistro3/pack2/_attribute", "<attributes><attribute namespace='OBS' name='Maintained' /></attributes>"
+    assert_response :success
+
+    # search for maintained packages like osc is doing
+    get "/search/package?match=%28%40name+%3D+%27pack2%27%29+and+%28project%2Fattribute%2F%40name%3D%27OBS%3AMaintained%27+or+attribute%2F%40name%3D%27OBS%3AMaintained%27%29"
+    assert_response :success
+    assert_tag :tag => "collection", :children => { :count => 2 }
+   
+    # do the real mbranch for default maintained packages
+    prepare_request_with_user "tom", "thunder"
+    post "/source", :cmd => "branch", :package => "pack2"
+    assert_response :success
+
+    # validate result is done in project wide test case
+
+    # do some file changes
+    put "/source/home:tom:branches:OBS_Maintained:pack2/pack2.BaseDistro2.0_LinkedUpdateProject/new_file", "new_content_0815"
+    assert_response :success
+    put "/source/home:tom:branches:OBS_Maintained:pack2/pack2.BaseDistro3/new_file", "new_content_2137"
+    assert_response :success
+
+    # create maintenance request for one package
+    # without specifing target, the default target must get found via attribute
+    post "/request?cmd=create", '<request>
+                                   <action type="maintenance_incident">
+                                     <source project="home:tom:branches:OBS_Maintained:pack2" package="pack2.BaseDistro3" />
+                                     <options>
+                                       <sourceupdate>cleanup</sourceupdate>
+                                     </options>
+                                   </action>
+                                   <description>To fix my bug</description>
+                                   <state name="new" />
+                                 </request>'
+    assert_response :success
+    assert_tag( :tag => "target", :attributes => { :project => "My:Maintenance" } )
+    node = ActiveXML::XMLNode.new(@response.body)
+    assert node.has_attribute?(:id)
+    id1 = node.value(:id)
+
+    # accept request
+    prepare_request_with_user "maintenance_coord", "power"
+    post "/request/#{id1}?cmd=changestate&newstate=accepted"
+    assert_response :success
+
+    get "/request/#{id1}"
+    assert_response :success
+    data = REXML::Document.new(@response.body)
+    maintenanceProject=data.elements["/request/action/target"].attributes.get_attribute("project").to_s
+    assert_not_equal maintenanceProject, "My:Maintenance"
+
+    #validate cleanup
+    get "/source/home:tom:branches:OBS_Maintained:pack2/pack2.BaseDistro3"
+    assert_response 404
+    get "/source/home:tom:branches:OBS_Maintained:pack2"
+    assert_response :success
+
+    # test build and publish flags
+    get "/source/#{maintenanceProject}/_meta"
+    assert_tag :parent => { :tag => "build" }, :tag => "disable"
+    assert_tag :parent => { :tag => "publish" }, :tag => "disable"
+    assert_response :success
+    get "/source/#{maintenanceProject}/patchinfo/_meta"
+    assert_response :success
+    assert_tag :parent => { :tag => "build" }, :tag => "enable"
+    assert_tag :parent => { :tag => "publish" }, :tag => "enable"
+    assert_tag :parent => { :tag => "useforbuild" }, :tag => "disable"
+
+    # create maintenance request with invalid target
+    post "/request?cmd=create", '<request>
+                                   <action type="maintenance_incident">
+                                     <source project="home:tom:branches:OBS_Maintained:pack2" package="pack2.BaseDistro2.0_LinkedUpdateProject" />
+                                     <target project="home:tom" />
+                                   </action>
+                                 </request>'
+    assert_response 400
+    assert_tag :tag => "status", :attributes => { :code => "incident_has_no_maintenance_project" }
+    # valid target..
+    post "/request?cmd=create", '<request>
+                                   <action type="maintenance_incident">
+                                     <source project="home:tom:branches:OBS_Maintained:pack2" package="pack2.BaseDistro2.0_LinkedUpdateProject" />
+                                     <target project="'+maintenanceProject+'" />
+                                   </action>
+                                 </request>'
+    assert_response :success
+    assert_tag( :tag => "target", :attributes => { :project => maintenanceProject } )
+    node = ActiveXML::XMLNode.new(@response.body)
+    assert node.has_attribute?(:id)
+    id2 = node.value(:id)
+    # ... but do not use it
+    post "/request/#{id2}?cmd=changestate&newstate=revoked"
+    assert_response :success
+
+    # create maintenance request for two further packages
+    # without specifing target, the default target must get found via attribute
+    post "/request?cmd=create", '<request>
+                                   <action type="maintenance_incident">
+                                     <source project="home:tom:branches:OBS_Maintained:pack2" package="pack2.BaseDistro2.0_LinkedUpdateProject" />
+                                     <options>
+                                       <sourceupdate>cleanup</sourceupdate>
+                                     </options>
+                                   </action>
+                                   <action type="maintenance_incident">
+                                     <source project="home:tom:branches:OBS_Maintained:pack2" package="pack2_linked.BaseDistro2.0_LinkedUpdateProject" />
+                                     <options>
+                                       <sourceupdate>cleanup</sourceupdate>
+                                     </options>
+                                   </action>
+                                   <state name="new" />
+                                   <description>To fix my other bug</description>
+                                 </request>'
+    assert_response :success
+    assert_tag( :tag => "target", :attributes => { :project => "My:Maintenance" } )
+    node = ActiveXML::XMLNode.new(@response.body)
+    assert node.has_attribute?(:id)
+    id2 = node.value(:id)
+
+    # set incident to merge into existing one
+    prepare_request_with_user "maintenance_coord", "power"
+    post "/request/#{id2}?cmd=setincident&incident=#{maintenanceProject.gsub(/.*:/,'')}"
+    assert_response :success
+
+    get "/request/#{id2}"
+    assert_response :success
+    data = REXML::Document.new(@response.body)
+    maintenanceNotNewProject=data.elements["/request/action/target"].attributes.get_attribute("project").to_s
+    assert_equal maintenanceProject, maintenanceNotNewProject
+
+    # try to do it again
+    prepare_request_with_user "maintenance_coord", "power"
+    post "/request/#{id2}?cmd=setincident&incident=#{maintenanceProject.gsub(/.*:/,'')}"
+    assert_response 404
+    assert_tag :tag => "status", :attributes => { :code => "target_not_maintenance" }
+
+    # accept request
+    prepare_request_with_user "maintenance_coord", "power"
+    post "/request/#{id2}?cmd=changestate&newstate=accepted&force=1" # ignore reviews and accept
+    assert_response :success
+
+    get "/request/#{id2}"
+    assert_response :success
+    data = REXML::Document.new(@response.body)
+    maintenanceNotNewProject=data.elements["/request/action/target"].attributes.get_attribute("project").to_s
+    assert_equal maintenanceProject, maintenanceNotNewProject
+
+    # no patchinfo was part in source project, got it created ?
+    get "/source/#{maintenanceProject}/patchinfo/_patchinfo"
+    assert_response :success
+    assert_tag :tag => 'packager', :content => "tom"
+    assert_tag :tag => 'description', :content => "To fix my bug"
+
+    #validate cleanup
+    get "/source/home:tom:branches:OBS_Maintained:pack2"
+    assert_response 404
+  end
+
+  def test_mbranch_and_maintenance_entire_project_request
     prepare_request_with_user "king", "sunflower"
     put "/source/ServicePack/_meta", "<project name='ServicePack'><title/><description/><link project='kde4'/></project>"
     assert_response :success
@@ -106,8 +267,7 @@ class MaintenanceTests < ActionController::IntegrationTest
     # search for maintained packages like osc is doing
     get "/search/package?match=%28%40name+%3D+%27pack2%27%29+and+%28project%2Fattribute%2F%40name%3D%27OBS%3AMaintained%27+or+attribute%2F%40name%3D%27OBS%3AMaintained%27%29"
     assert_response :success
-    ret = ActiveXML::XMLNode.new @response.body
-    assert_equal ret.package.each.count, 3
+    assert_tag :tag => "collection", :children => { :count => 3 }
    
     # do the real mbranch for default maintained packages
     prepare_request_with_user "tom", "thunder"
@@ -218,12 +378,17 @@ class MaintenanceTests < ActionController::IntegrationTest
     assert_match(/branch target package already exists:/, @response.body)
 
     # create patchinfo
-    post "/source/BaseDistro?cmd=createpatchinfo&new_format=1"
+    post "/source/BaseDistro?cmd=createpatchinfo"
     assert_response 403
-    post "/source/home:tom:branches:OBS_Maintained:pack2?cmd=createpatchinfo&new_format=1"
+    post "/source/home:tom:branches:OBS_Maintained:pack2?cmd=createpatchinfo"
     assert_response :success
     assert_tag( :tag => "data", :attributes => { :name => "targetpackage"}, :content => "patchinfo" )
     assert_tag( :tag => "data", :attributes => { :name => "targetproject"}, :content => "home:tom:branches:OBS_Maintained:pack2" )
+    get "/source/home:tom:branches:OBS_Maintained:pack2/patchinfo/_meta"
+    assert_response :success
+    assert_tag :parent => { :tag => "build" }, :tag => "enable"
+    assert_tag :parent => { :tag => "publish" }, :tag => "enable"
+    assert_tag :parent => { :tag => "useforbuild" }, :tag => "disable"
 
     # create maintenance request
     # without specifing target, the default target must get found via attribute
@@ -368,10 +533,16 @@ class MaintenanceTests < ActionController::IntegrationTest
   end
 
   def wait_for_publisher
-    events = nil
-    #     first time             3 => ".", ".." and ".ping"
-    while events.class != Dir or events.count > 3
+    counter = 0
+    while counter < 100
       events = Dir.open("#{RAILS_ROOT}/tmp/backend_data/events/publish")
+      #  3 => ".", ".." and ".ping"
+      break unless events.count > 3
+      sleep 0.5
+      counter = counter + 1
+    end
+    if counter == 100
+      raise "Waited 50 seconds for publisher"
     end
   end
 
@@ -480,13 +651,16 @@ class MaintenanceTests < ActionController::IntegrationTest
     get "/source/"+maintenanceProject+"/pack2.BaseDistro3/_meta"
     assert_response :success
     assert_tag( :parent => { :tag => "build" }, :tag => "enable", :attributes => { :repository => "BaseDistro3"} )
+    # set lock disabled to check later the valid result when enabling
+    post "/source/#{maintenanceProject}?cmd=set_flag&flag=lock&status=disable"
+    assert_response :success
 
     # create some changes, including issue_tracker references
-    put "/source/"+maintenanceProject+"/pack2.BaseDistro2.0_LinkedUpdateProject/dummy_file", "DUMMY bnc#1042 CVE-2009-0815"
+    put "/source/"+maintenanceProject+"/pack2.BaseDistro2.0_LinkedUpdateProject/dummy.changes", "DUMMY bnc#1042"
     assert_response :success
     post "/source/"+maintenanceProject+"/pack2.BaseDistro2.0_LinkedUpdateProject?unified=1&cmd=diff&filelimit=0&expand=1"
     assert_response :success
-    assert_match /DUMMY bnc#1042 CVE-2009-0815/, @response.body
+    assert_match /DUMMY bnc#1042/, @response.body
 
     # add a new package with defined link target
     post "/source/BaseDistro2.0/packNew", :cmd => "branch", :target_project => maintenanceProject, :missingok => 1, :extend_package_names => 1
@@ -519,15 +693,14 @@ class MaintenanceTests < ActionController::IntegrationTest
     assert_tag( :parent => {:tag => "build"}, :tag => "enable", :content => nil )
     get "/source/#{maintenanceProject}/patchinfo?view=issues"
     assert_response :success
+    assert_no_tag :parent => { :tag => 'issue' }, :tag => 'issue', :attributes => { :change => nil }
+    assert_no_tag :parent => { :tag => 'issue' }, :tag => 'issue', :attributes => { :change => "" }
     assert_tag :parent => { :tag => 'issue' }, :tag => 'name', :content => "1042"
-    assert_tag :parent => { :tag => 'issue' }, :tag => 'issue_tracker', :content => "bnc"
     assert_tag :parent => { :tag => 'issue' }, :tag => 'name', :content => "0815"
     assert_tag :parent => { :tag => 'issue' }, :tag => 'issue_tracker', :content => "bnc"
-    assert_tag :parent => { :tag => 'issue' }, :tag => 'name', :content => "CVE-2009-0815"
-    assert_tag :parent => { :tag => 'issue' }, :tag => 'issue_tracker', :content => "cve"
 
     # add another issue and update patchinfo
-    put "/source/"+maintenanceProject+"/pack2.BaseDistro2.0_LinkedUpdateProject/dummy_file", "DUMMY bnc#1042 CVE-2009-0815 bnc#4201"
+    put "/source/"+maintenanceProject+"/pack2.BaseDistro2.0_LinkedUpdateProject/dummy.changes", "DUMMY bnc#1042 CVE-2009-0815 bnc#4201"
     assert_response :success
     post "/source/#{maintenanceProject}/patchinfo?cmd=updatepatchinfo"
     assert_response :success
@@ -538,6 +711,8 @@ class MaintenanceTests < ActionController::IntegrationTest
     get "/source/#{maintenanceProject}/patchinfo?view=issues"
     assert_response :success
     assert_tag :tag => 'kind', :content => "patchinfo"
+    assert_no_tag :parent => { :tag => 'issue' }, :tag => 'issue', :attributes => { :change => nil }
+    assert_no_tag :parent => { :tag => 'issue' }, :tag => 'issue', :attributes => { :change => "" }
     assert_tag :parent => { :tag => 'issue' }, :tag => 'name', :content => "1042"
     assert_tag :parent => { :tag => 'issue' }, :tag => 'issue_tracker', :content => "bnc"
     assert_tag :parent => { :tag => 'issue' }, :tag => 'name', :content => "CVE-2009-0815"
@@ -645,13 +820,17 @@ class MaintenanceTests < ActionController::IntegrationTest
     get "/source/#{maintenanceProject}/_meta"
     assert_response :success
     assert_tag( :parent => { :tag => "lock" }, :tag => "enable" )
+    assert_no_tag( :parent => { :tag => "lock" }, :tag => "disable" ) # disable got removed
 
     # approve review
     prepare_request_with_user "king", "sunflower"
     post "/request/#{reqid}?cmd=changereviewstate&newstate=accepted&by_group=test_group&comment=blahfasel"
     assert_response :success
+    post "/request/#{reqid}?cmd=changereviewstate&newstate=accepted&by_user=fred&comment=blahfasel" # default package reviewer
+    assert_response :success
 
     # release packages
+    get "/request/#{reqid}"
     post "/request/#{reqid}?cmd=changestate&newstate=accepted"
     assert_response :success
     run_scheduler( "i586" )
@@ -692,6 +871,9 @@ class MaintenanceTests < ActionController::IntegrationTest
     get "/build/BaseDistro2.0:LinkedUpdateProject/BaseDistro2LinkedUpdateProject_repo/i586/_repository"
     assert_response :success
     assert_tag :parent => { :tag => "binarylist" },  :tag => 'binary', :attributes => { :filename => "package.rpm" } 
+    get "/source/BaseDistro2.0:LinkedUpdateProject/_project/_history"
+    assert_response :success
+    assert_tag :parent => { :tag => "revision" },  :tag => 'comment', :content => "Release from project: My:Maintenance:#{incidentID}"
 
     # no maintenance trigger exists anymore
     get "/source/#{maintenanceProject}/_meta"
@@ -783,7 +965,7 @@ class MaintenanceTests < ActionController::IntegrationTest
                                    <state name="new" />
                                  </request>'
     assert_response 400
-    assert_tag :tag => "status", :attributes => { :code => "request_rejected" }
+    assert_tag :tag => "status", :attributes => { :code => "submit_request_rejected" }
     assert_match /is a maintenance release project/, @response.body
   end
 

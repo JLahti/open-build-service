@@ -772,7 +772,7 @@ class DbProject < ActiveRecord::Base
     end #transaction
   end
 
-  def store(login=nil)
+  def store(login=nil, lowprio=false)
     # update timestamp and save
     self.save!
     # expire cache
@@ -781,6 +781,7 @@ class DbProject < ActiveRecord::Base
     if write_through?
       login = User.current.login unless login # Allow to override if User.current isn't available yet
       path = "/source/#{self.name}/_meta?user=#{URI.escape(login)}"
+      path += "&lowprio=1" if lowprio
       Suse::Backend.put_source( path, to_axml )
     end
 
@@ -798,7 +799,7 @@ class DbProject < ActiveRecord::Base
     end
     # verify the number of allowed values
     if atype.value_count and attrib.has_element? :value and atype.value_count != attrib.each_value.length
-      raise SaveError, "Attribute: '#{attrib.namespace}:#{attrib.name}' has #{attrib.each_value.length} values, but only #{atype.value_count} are allowed"
+      raise SaveError, "attribute '#{attrib.namespace}:#{attrib.name}' has #{attrib.each_value.length} values, but only #{atype.value_count} are allowed"
     end
     if atype.value_count and atype.value_count > 0 and not attrib.has_element? :value
       raise SaveError, "attribute '#{attrib.namespace}:#{attrib.name}' requires #{atype.value_count} values, but none given"
@@ -846,11 +847,24 @@ class DbProject < ActiveRecord::Base
   def render_issues_axml(params)
     builder = Builder::XmlMarkup.new( :indent => 2 )
 
+    filter_changes = states = nil
+    filter_changes = params[:changes].split(",") if params[:changes]
+    states = params[:states].split(",") if params[:states]
+    login = params[:login]
+
     xml = builder.project( :name => self.name ) do |project|
       self.db_packages.each do |pkg|
         project.package( :project => pkg.db_project.name, :name => pkg.name ) do |package|
           pkg.db_package_issues.each do |i|
-            i.issue.render_body(package)
+            next if filter_changes and not filter_changes.include? i.change
+            next if states and (not i.issue.state or not states.include? i.issue.state)
+            o = nil
+            if i.issue.owner_id
+              # self.owner must not by used, since it is reserved by rails
+              o = User.find_by_id i.issue.owner_id
+            end
+            next if login and (not o or not login == o.login)
+            i.issue.render_body(package, i.change)
           end
         end
       end

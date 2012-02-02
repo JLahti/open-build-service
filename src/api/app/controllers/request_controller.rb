@@ -320,10 +320,12 @@ class RequestController < ApplicationController
             end
             data = nil
             missing_ok_link=false
+            suffix = ""
             while tprj == pkg.db_project.name
               data = REXML::Document.new( backend_get("/source/#{URI.escape(tprj)}/#{URI.escape(ltpkg)}") )
               e = data.elements["directory/linkinfo"]
               if e
+                suffix = ltpkg.gsub( /^#{e.attributes["package"]}/, '' )
                 ltpkg = e.attributes["package"]
                 tprj = e.attributes["project"]
                 missing_ok_link=true if e.attributes["missingok"]
@@ -343,7 +345,7 @@ class RequestController < ApplicationController
                 tprj = nil
               end
             end
-            tpkg = tpkg.gsub(/\..*/, '') # strip distro specific extension
+            tpkg = tpkg.gsub(/#{suffix}$/, '') # strip distro specific extension
 
             # do not allow release requests without binaries
             if action.value("type") == "maintenance_release" and data and params["ignore_build_state"].nil?
@@ -490,8 +492,8 @@ class RequestController < ApplicationController
       if action.has_element?('target') and action.target.has_attribute?('project')
         tprj = DbProject.get_by_name action.target.project
         if tprj.class == DbProject and tprj.project_type == "maintenance_release" and action.value('type') == 'submit'
-          render_error :status => 400, :errorcode => 'request_rejected',
-            :message => "The target project #{action.target.project} is a maintenance release project, please use the maintenance workflow instead."
+          render_error :status => 400, :errorcode => 'submit_request_rejected',
+            :message => "The target project #{action.target.project} is a maintenance release project, a submit action is not possible, please use the maintenance workflow instead."
           return
         end
         if tprj.class == DbProject and (a = tprj.find_attribute("OBS", "RejectRequests") and a.values.first)
@@ -553,11 +555,6 @@ class RequestController < ApplicationController
         end
 
         if action.value("type") == "maintenance_incident"
-          if action.source.has_attribute?(:package)
-            render_error :status => 400, :errorcode => 'illegal_request',
-              :message => "Maintenance requests accept only entire projects as source"
-            return
-          end
           # find target project via attribute, if not specified
           unless action.has_element? 'target' 
             action.add_element 'target'
@@ -585,7 +582,7 @@ class RequestController < ApplicationController
           end
           # validate project type
           prj = DbProject.get_by_name(action.target.project)
-          unless prj.project_type == "maintenance"
+          unless [ "maintenance", "maintenance_incident" ].include? prj.project_type
             render_error :status => 400, :errorcode => "incident_has_no_maintenance_project",
               :message => "incident projects shall only create below maintenance projects"
             return
@@ -624,7 +621,7 @@ class RequestController < ApplicationController
           if xml.elements["/directory/entry/@name='_patchinfo'"]
             predicate = "(state/@name='new' or state/@name='review') and action/target/@project='#{action.target.project}' and action/target/@package='#{action.target.package}'"
           else
-            tpkgprefix = action.target.package.gsub(/\..*/, '')
+            tpkgprefix = action.target.package.gsub(/\.[^\.]*$/, '')
             predicate = "(state/@name='new' or state/@name='review') and action/target/@project='#{action.target.project}' and (action/target/@package='#{action.target.package}' or starts-with(action/target/@package,'#{tpkgprefix}.'))"
           end
 
@@ -695,7 +692,7 @@ class RequestController < ApplicationController
         if action.target.has_attribute? 'package'
           if action.value("type") == "maintenance_release"
             # use orignal/stripped name and also GA projects for maintenance packages
-            tpkg = tprj.find_package action.target.package.gsub(/\..*/, '')
+            tpkg = tprj.find_package action.target.package.gsub(/\.[^\.]*$/, '')
           else
             # just the direct affected target
             tpkg = tprj.db_packages.find_by_name action.target.package
@@ -728,7 +725,7 @@ class RequestController < ApplicationController
           end
           unless object.enabled_for?('lock', nil, nil)
             f = object.flags.find_by_flag_and_status("lock", "disable")
-            f.delete if f # remove possible existing disable lock flag
+            object.flags.delete(f) if f # remove possible existing disable lock flag
             object.flags.create(:status => "enable", :flag => "lock")
             object.store
           end
@@ -923,6 +920,10 @@ class RequestController < ApplicationController
     end
   end
 
+  def command_setincident
+     command_changestate# :cmd => "setincident",
+                       # :incident
+  end
   def command_addreview
      command_changestate# :cmd => "addreview",
                        # :by_user => params[:by_user], :by_group => params[:by_group], :by_project => params[:by_project], :by_package => params[:by_package]
@@ -1020,7 +1021,7 @@ class RequestController < ApplicationController
       render_error :status => 403, :errorcode => "post_request_no_permission",
                :message => "Deletion of a request is only permitted for administrators. Please revoke the request instead."
       return
-    elsif params[:cmd] == "addreview" 
+    elsif params[:cmd] == "addreview" or params[:cmd] == "setincident"
       unless [ "review", "new" ].include? req.state.name
         render_error :status => 403, :errorcode => "add_review_no_permission",
               :message => "The request is not in state new or review"
@@ -1125,6 +1126,28 @@ class RequestController < ApplicationController
               render_error :status => 404, :errorcode => "unknown_package",
                 :message => "Source package is missing for request #{req.id} (type #{action.value('type')})"
               return
+            end
+          end
+          # maintenance incident target permission checks
+          if [ "maintenance_incident" ].include? action.value("type")
+            if params[:cmd] == "setincident"
+              unless target_project.project_type == "maintenance"
+                render_error :status => 404, :errorcode => "target_not_maintenance",
+                  :message => "The target project is not of type maintenance but #{target_project.project_type}"
+                return
+              end
+              tip = DbProject.get_by_name(action.target.project + ":" + params[:incident])
+              if tip.is_locked?
+                render_error :status => 403, :errorcode => "project_locked",
+                  :message => "The target project is locked"
+                return
+              end
+            else
+              unless [ "maintenance", "maintenance_incident" ].include? target_project.project_type
+                render_error :status => 404, :errorcode => "target_not_maintenance_or_incident",
+                  :message => "The target project is not of type maintenance or incident but #{target_project.project_type}"
+                return
+              end
             end
           end
           # write access check in release targets
@@ -1275,6 +1298,44 @@ class RequestController < ApplicationController
 
     # permission granted for the request at this point
 
+    # special command defining an incident to be merged
+    check_for_patchinfo = false
+    req.each_action do |action|
+      incident_project = nil
+      if action.value("type") == "maintenance_incident"
+        tprj = DbProject.get_by_name action.target.project
+
+        if params[:cmd] == "setincident"
+          # use an existing incident
+          if tprj.project_type == "maintenance"
+            tprj = DbProject.get_by_name(action.target.project + ":" + params[:incident])
+            action.target.set_attribute("project", tprj.name)
+          end
+        else # the accept case, create a new incident if needed
+          if tprj.project_type == "maintenance"
+            # create incident if it is a maintenance project
+            unless incident_project
+              source = DbProject.get_by_name(action.source.project)
+              incident_project = create_new_maintenance_incident(tprj, source, req ).db_project
+              check_for_patchinfo = true
+            end
+            unless incident_project.name.start_with?(tprj.name)
+              render_error :status => 404, :errorcode => "multiple_maintenance_incidents",
+                :message => "This request handles different maintenance incidents, this is not allowed !"
+              return
+            end
+            action.target.set_attribute("project", incident_project.name)
+          end
+        end
+        req.save
+      end
+    end
+    # job done by changing target
+    if params[:cmd] == "setincident"
+      render_ok
+      return
+    end
+
     # All commands are process by the backend. Just the request accept is controlled by the api.
     path = request.path + build_query_from_hash(params, [:cmd, :user, :newstate, :by_user, :by_group, :by_project, :by_package, :superseded_by, :comment])
     unless params[:cmd] == "changestate" and params[:newstate] == "accepted"
@@ -1285,6 +1346,9 @@ class RequestController < ApplicationController
 
     # have a unique time stamp for release
     acceptTimeStamp = Time.now.utc.strftime "%Y-%m-%d %H:%M:%S"
+    # all maintenance_incident actions go into the same incident project
+    incident_project = nil
+    projectCommit = {}
 
     # use the request description as comments for history
     params[:comment] = req.value(:description)
@@ -1430,19 +1494,57 @@ class RequestController < ApplicationController
           Suse::Backend.delete delete_path
 
       elsif action.value("type") == "maintenance_incident"
-        # create incident project
-        source_project = DbProject.get_by_name(action.source.project)
-        target_project = DbProject.get_by_name(action.target.project)
-        incident = create_new_maintenance_incident(target_project, source_project, req )
+        # create or merge into incident project
+        source = nil
+        if action.source.has_attribute? :package
+          source = DbPackage.get_by_project_and_name(action.source.project, action.source.package)
+        else
+          source = DbProject.get_by_name(action.source.project)
+        end
 
-        # update request with real target project
-        action.target.set_attribute("project", incident.db_project.name)
+        incident_project = DbProject.get_by_name(action.target.project)
+
+        # the incident got created before
+        merge_into_maintenance_incident(incident_project, source, request = nil)
+
+        # update action with real target project
+        action.target.set_attribute("project", incident_project.name)
         req.save
+
+        # create a patchinfo if missing and incident has just been created
+        if check_for_patchinfo
+          unless DbPackage.find_by_project_and_kind incident_project.name, "patchinfo"
+            patchinfo = DbPackage.new(:name => "patchinfo", :title => "Patchinfo", :description => "Collected packages for update")
+            incident_project.db_packages << patchinfo
+            patchinfo.add_flag("build", "enable", nil, nil)
+            patchinfo.add_flag("publish", "enable", nil, nil)
+            patchinfo.add_flag("useforbuild", "disable", nil, nil)
+            patchinfo.store
+
+            # create patchinfo XML file
+            node = Builder::XmlMarkup.new(:indent=>2)
+            xml = node.patchinfo() do |n|
+              node.packager    req.creator
+              node.category    "recommended"
+              node.rating      "low"
+              node.summary     req.description
+              node.description req.description
+            end
+            data = ActiveXML::Base.new(node.target!)
+#            xml = update_patchinfo( data, pkg )
+            p={ :user => @http_user.login, :comment => "generated by request id #{req.id} accept call" }
+            patchinfo_path = "/source/#{CGI.escape(patchinfo.db_project.name)}/patchinfo/_patchinfo"
+            patchinfo_path << build_query_from_hash(p, [:user, :comment])
+            backend_put( patchinfo_path, data.dump_xml )
+            patchinfo.sources_changed
+          end
+        end
 
       elsif action.value("type") == "maintenance_release"
         pkg = DbPackage.get_by_project_and_name(action.source.project, action.source.package)
 #FIXME2.5: support limiters to specified repositories
         release_package(pkg, action.target.project, action.target.package, action.source.rev, nil, nil, acceptTimeStamp, req)
+        projectCommit[action.target.project] = action.source.project
       end
 
       # general source cleanup, used in submit and maintenance_incident actions
@@ -1475,6 +1577,21 @@ class RequestController < ApplicationController
         update_product_autopackages action.target.project
       end
     end
+
+    # log release events once in target project
+    projectCommit.each do |tprj, sprj|
+      commit_params = {
+        :cmd => "commit",
+        :user => @http_user.login,
+        :requestid => params[:id],
+        :rev => "latest",
+        :comment => "Release from project: " + sprj
+      }
+      commit_path = "/source/#{URI.escape(tprj)}/_project"
+      commit_path << build_query_from_hash(commit_params, [:cmd, :user, :comment, :requestid, :rev])
+      Suse::Backend.post commit_path, nil
+    end
+
     pass_to_backend path
   end
 end

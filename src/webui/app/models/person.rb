@@ -62,7 +62,6 @@ class Person < ActiveXML::Base
   end
 
   def initialize(data)
-    @mygroups = nil
     super(data)
     @login = self.value(:login)
   end
@@ -134,7 +133,7 @@ class Person < ActiveXML::Base
     cachekey = "#{login}_involved_requests"
     Rails.cache.delete cachekey unless opts[:cache]
     return Rails.cache.fetch(cachekey, :expires_in => 10.minutes) do
-      BsRequest.list(:states => 'new,review', :user => login.to_s)
+      BsRequest.list(:states => 'new,review', :user => login)
     end
   end
 
@@ -142,7 +141,42 @@ class Person < ActiveXML::Base
     cachekey = "#{login}_patchinfos_that_need_work"
     Rails.cache.delete cachekey unless opts[:cache]
     return Rails.cache.fetch(cachekey, :expires_in => 10.minutes) do
-      Collection.find_cached(:id, :what => 'package', :predicate => "patchinfo/issue/[@state='OPEN' and owner/@login='#{login}']")
+      array = Array.new
+      col = Collection.find_cached(:id, :what => 'package', :predicate => "[kind='patchinfo' and issue/[@state='OPEN' and owner/@login='#{CGI.escape(login)}']]")
+      col.each_package do |pi|
+        hash = { :package => { :project => pi.project, :name => pi.name } }
+        issues = Array.new
+
+        # get users open issues for package
+        path = "/source/#{CGI.escape(pi.project)}/#{CGI.escape(pi.name)}?view=issues&states=OPEN&login='#{CGI.escape(login)}'"
+        frontend = ActiveXML::Config::transport_for( :package )
+        answer = frontend.direct_http URI(path), :method => "GET"
+        doc = ActiveXML::Base.new(answer)
+        doc.each("/package/issue") do |s|
+          i = {}
+          i[:name]= s.find_first("name").text
+          i[:issue_tracker]= s.find_first("issue_tracker").text
+          i[:long_name]= s.find_first("long_name").text
+          i[:url]= s.find_first("url").text
+          if description=s.find_first("description")
+            i[:description] = description.text
+          end
+          if state=s.find_first("state")
+            i[:state] = state.text
+          end
+          if login=s.find_first("login")
+            i[:login] = login.text
+          end
+          if updated_at=s.find_first("updated_at")
+            i[:updated_at] = updated_at.text
+          end
+          issues << i
+        end
+
+        hash[:issues] = issues
+        array << hash
+      end
+      return array
     end
   end
 
@@ -152,19 +186,20 @@ class Person < ActiveXML::Base
     cachekey = "#{login}_requests_that_need_work"
     Rails.cache.delete cachekey unless opts[:cache]
     return Rails.cache.fetch(cachekey, :expires_in => 10.minutes) do
-      [BsRequest.list({:states => 'declined', :roles => "creator", :user => login.to_s}),
-       BsRequest.list({:states => 'review', :reviewstates => 'new', :roles => "reviewer", :user => login.to_s}),
-       BsRequest.list({:states => 'new', :roles => "maintainer", :user => login.to_s})]
+      [BsRequest.list({:states => 'declined', :roles => "creator", :user => login}),
+       BsRequest.list({:states => 'review', :reviewstates => 'new', :roles => "reviewer", :user => login}),
+       BsRequest.list({:states => 'new', :roles => "maintainer", :user => login})]
     end
   end
 
   def groups
-    return @mygroups if @mygroups
-    @mygroups = Array.new
-    PersonGroup.find(login.to_s).each('/directory/entry') do |e|
-        @mygroups << e.value("name")
+    return Rails.cache.fetch("person_#{login}_groups", :expires_in => 5.minutes) do
+      groups = []
+      PersonGroup.find(login).each('/directory/entry') do |e|
+          groups << e.value('name')
+      end
+      groups
     end
-    return @mygroups
   end
 
   def packagesorter(a, b)

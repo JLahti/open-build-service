@@ -16,7 +16,9 @@ class IssueTrackersControllerTest < ActionController::IntegrationTest
       <name>test</name>
       <description>My test issue tracker</description>
       <regex>test#\d+test</regex>
+      <long-name>test#%s+test</long-name>
       <kind>bugzilla</kind>
+      <enable-fetch>false</enable-fetch>
       <user>obsbugbot</user>
       <password>secret</password>
       <url>http://example.com</url>
@@ -39,6 +41,8 @@ class IssueTrackersControllerTest < ActionController::IntegrationTest
     assert_tag :tag => "name", :content => "test"
     assert_tag :tag => "description", :content => "My test issue tracker"
     assert_tag :tag => "regex", :content => "test#\d+test"
+    assert_tag :tag => "long-name", :content => "test#%s+test"
+    assert_tag :tag => "enable-fetch", :content => "false"
     assert_tag :tag => "kind", :content => "bugzilla"
     assert_tag :tag => "url", :content => "http://example.com"
     assert_tag :tag => "show-url", :content => "http://example.com/@@@"
@@ -54,6 +58,8 @@ class IssueTrackersControllerTest < ActionController::IntegrationTest
       <name>test</name>
       <description>My even better test issue tracker</description>
       <regex>tester#\d+</regex>
+      <long-name>tester#%s+</long-name>
+      <enable-fetch>true</enable-fetch>
       <kind>cve</kind>
       <url>http://test.com</url>
       <show-url>http://test.com/@@@</show-url>
@@ -70,6 +76,8 @@ class IssueTrackersControllerTest < ActionController::IntegrationTest
     assert_tag :tag => "name", :content => "test"
     assert_tag :tag => "description", :content => "My even better test issue tracker"
     assert_tag :tag => "regex", :content => "tester#\d+"
+    assert_tag :tag => "long-name", :content => "tester#%s+"
+    assert_tag :tag => "enable-fetch", :content => "true"
     assert_tag :tag => "kind", :content => "cve"
     assert_tag :tag => "url", :content => "http://test.com"
     assert_tag :tag => "show-url", :content => "http://test.com/@@@"
@@ -84,53 +92,4 @@ class IssueTrackersControllerTest < ActionController::IntegrationTest
     assert_response :success
   end
 
-  def test_get_issues_in_text
-    ActionController::IntegrationTest::reset_auth
-    text = <<EOF
-@@ -1,4 +1,12 @@
- -------------------------------------------------------------------
-+Fri Nov  4 08:33:52 UTC 2011 - lijewski.stefan@gmail.com
-+
-+- fix possible overflow and DOS in pam_env (bnc#724480)
-+  CVE-2011-3148, CVE-2011-3149
-+- fix pam_xauth not checking return value of setuid (bnc#631802)
-+  CVE-2010-3316
-+  blabla bnc#666
-+
-  +-------------------------------------------------------------------
-   Thu Nov 27 15:56:51 CET 2008 - mc@suse.de
- 
- - enhance the man page for limits.conf (bnc#448314)")
--  bnc#12345, bnc#666
-EOF
-    get '/issue_trackers/issues_in', :text => text
-    assert_response 401
-    prepare_request_with_user "adrian", "so_alone"
-    get '/issue_trackers/issues_in', :text => text
-    assert_response :success
-    assert_tag :tag => "issue_tracker", :content => "bnc"
-    assert_tag :tag => "issue_tracker", :content => "cve"
-    assert_tag :tag => "long_name", :content => "bnc#724480"
-    assert_tag :tag => "name", :content => "448314"
-    assert_tag :tag => "name", :content => "631802"
-    assert_tag :tag => "name", :content => "724480"
-    assert_tag :tag => "name", :content => "CVE-2011-3148"
-    assert_tag :tag => "name", :content => "CVE-2011-3149"
-    assert_tag :tag => "name", :content => "CVE-2010-3316"
-    assert_tag :tag => "long_name", :content => "bnc#12345"
-    assert_tag :tag => "long_name", :content => "bnc#666"
-    assert_no_tag :tag => "password"
-
-    get '/issue_trackers/issues_in', :text => text, :diff_mode => true
-    assert_response :success
-    assert_no_tag :tag => "name", :content => "448314"
-    assert_tag :tag => "name", :content => "631802"
-    assert_tag :tag => "name", :content => "724480"
-    assert_tag :tag => "name", :content => "CVE-2011-3148"
-    assert_tag :tag => "name", :content => "CVE-2011-3149"
-    assert_tag :tag => "name", :content => "CVE-2010-3316"
-    assert_tag :tag => "long_name", :content => "bnc#12345"
-    assert_no_tag :tag => "long_name", :content => "bnc#666"
-    assert_no_tag :tag => "password"
-  end
 end

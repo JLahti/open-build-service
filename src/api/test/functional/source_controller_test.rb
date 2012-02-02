@@ -843,6 +843,8 @@ end
     assert_response :success
     put "/source/home:tom:projectB/_meta", "<project name='home:tom:projectB'> <title/> <description/> <repository name='repoB'> <path project='home:tom:projectA' repository='repoA' /> </repository> </project>"
     assert_response :success
+    put "/source/home:tom:projectC/_meta", "<project name='home:tom:projectC'> <title/> <description/> <repository name='repoC'> <path project='home:tom:projectB' repository='repoB' /> </repository> </project>"
+    assert_response :success
     # delete a repo
     put "/source/home:tom:projectA/_meta", "<project name='home:tom:projectA'> <title/> <description/> </project>"
     assert_response 400
@@ -853,14 +855,51 @@ end
     assert_response :success
     get "/source/home:tom:projectB/_meta"
     assert_response :success
-    assert_tag :tag => 'path', :attributes => { :project => "deleted", :repository => "gone" }
-    put "/source/home:tom:projectB/_meta", "<project name='home:tom:projectB'> <title/> <description/> </project>"
+    assert_tag :tag => 'path', :attributes => { :project => "deleted", :repository => "deleted" }
+    get "/source/home:tom:projectC/_meta"
     assert_response :success
+    assert_tag :tag => 'path', :attributes => { :project => "home:tom:projectB", :repository => "repoB" } # unmodified
 
     # cleanup
     delete "/source/home:tom:projectA"
     assert_response :success
     delete "/source/home:tom:projectB"
+    assert_response 403 # projectC still linking
+    delete "/source/home:tom:projectC"
+    assert_response :success
+    delete "/source/home:tom:projectB"
+    assert_response :success
+  end
+
+  def test_full_remove_repository_dependencies
+    prepare_request_with_user "tom", "thunder"
+    put "/source/home:tom:projectA/_meta", "<project name='home:tom:projectA'> <title/> <description/> <repository name='repoA'/> </project>"
+    assert_response :success
+    put "/source/home:tom:projectB/_meta", "<project name='home:tom:projectB'> <title/> <description/> <repository name='repoB'> <path project='home:tom:projectA' repository='repoA' /> </repository> </project>"
+    assert_response :success
+    put "/source/home:tom:projectC/_meta", "<project name='home:tom:projectC'> <title/> <description/> <repository name='repoC'> <path project='home:tom:projectB' repository='repoB' /> </repository> </project>"
+    assert_response :success
+    # delete a repo
+    put "/source/home:tom:projectA/_meta", "<project name='home:tom:projectA'> <title/> <description/> </project>"
+    assert_response 400
+    assert_tag( :tag => "status", :attributes => { :code => "repo_dependency"} )
+    delete "/source/home:tom:projectA"
+    assert_response 403
+    put "/source/home:tom:projectA/_meta?force=1&remove_linking_repositories=1", "<project name='home:tom:projectA'> <title/> <description/> </project>"
+    assert_response :success
+    get "/source/home:tom:projectB/_meta"
+    assert_response :success
+    assert_no_tag :tag => 'path'
+    get "/source/home:tom:projectC/_meta"
+    assert_response :success
+    assert_no_tag :tag => 'path'
+
+    # cleanup
+    delete "/source/home:tom:projectA"
+    assert_response :success
+    delete "/source/home:tom:projectB"
+    assert_response :success
+    delete "/source/home:tom:projectC"
     assert_response :success
   end
 
@@ -878,7 +917,7 @@ end
     assert_response :success
     get "/source/home:tom:projectB/_meta"
     assert_response :success
-    assert_tag :tag => 'path', :attributes => { :project => "deleted", :repository => "gone" }
+    assert_tag :tag => 'path', :attributes => { :project => "deleted", :repository => "deleted" }
     put "/source/home:tom:projectB/_meta", "<project name='home:tom:projectB'> <title/> <description/> </project>"
     assert_response :success
 
@@ -1327,7 +1366,7 @@ end
     assert_tag( :parent => { :tag => "revision" }, :tag => "comment", :content => "test deleted" )
     assert_response :success
 
-    # list deleted packages
+    # list deleted packages of existing project
     get "/source/kde4", :deleted => 1
     assert_response :success
     assert_tag( :tag => "entry", :attributes => { :name => "kdelibs"} )
@@ -1360,6 +1399,12 @@ end
     assert_response 404
     get "/source/kde4/_meta" 
     assert_response 404
+
+    # list deleted packages of deleted project
+# FIXME: not yet supported
+#    get "/source/kde4", :deleted => 1
+#    assert_response :success
+#    assert_tag( :tag => "entry", :attributes => { :name => "kdelibs"} )
 
     # list content of deleted project
     prepare_request_with_user "king", "sunflower"
@@ -1417,7 +1462,7 @@ end
     node = ActiveXML::XMLNode.new(@response.body)
     assert_equal node.repository.name, "home_coolo"
     assert_equal node.repository.path.project, "deleted"
-    assert_equal node.repository.path.repository, "gone"
+    assert_equal node.repository.path.repository, "deleted"
   end
 
   def test_diff_package
@@ -1618,9 +1663,8 @@ end
     assert_response :success
     post "/source/BaseDistro2.0:LinkedUpdateProject/pack2", :cmd => "branch"
     assert_response :success
-# FIXME: construct a linked package object to test this
-#    post "/source/BaseDistro2.0:LinkedUpdateProject/pack2", :cmd => "linkdiff"
-#    assert_response :success
+    post "/source/BaseDistro2.0:LinkedUpdateProject/pack2_linked", :cmd => "linkdiff"
+    assert_response :success
 
     # read-write user, binary operations must be allowed
     prepare_request_with_user "king", "sunflower"
@@ -2080,6 +2124,9 @@ end
     assert_response :success
 
     # branch again
+    get "/source/home:coolo:test/_meta"
+    assert_response :success
+    oldmeta = @response.body
     post "/source/home:Iggy/TestPack", :cmd => :branch, :target_project => "home:coolo:test"    
     assert_response 400
     assert_match(/branch target package already exists/, @response.body)
@@ -2090,6 +2137,10 @@ end
     post "/source/home:Iggy/TestPack", :cmd => :branch, :target_project => "home:coolo:test", :force => "1", :rev => "42424242"
     assert_response 400
     assert_match(/no such revision/, @response.body)
+    # project meta must be untouched
+    get "/source/home:coolo:test/_meta"
+    assert_response :success
+    assert_equal oldmeta, @response.body
     # FIXME: do a real commit and branch afterwards
 
     # now with a new project

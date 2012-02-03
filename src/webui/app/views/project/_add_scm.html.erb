@@ -1,0 +1,33 @@
+<div class="box" style="margin: 1em">
+
+  <div class="box-header aligncenter"><strong>Add a new package</strong></div>
+  <% if local_assigns[:error] %>
+    <div class="message error"><%= error %></div>
+  <% end %>
+
+<% form_tag :action => :create_scm do %>
+  <p>
+    <table>
+      <tr>
+        <td>
+          <%= label_tag "package" %>
+        </td>
+        <td>
+          <%= text_field_tag "package", "", :size => 10 %>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <%= label_tag "tag" %>
+        </td>
+        <td>
+          <%= text_field_tag "tag", "", :size => 10 %>
+        </td>
+      </tr>
+    <%= hidden_field_tag "project", @project.name %>
+  </p>
+  <p><%= submit_tag %></p>
+<% end %>
+
+  </div>
+</div>

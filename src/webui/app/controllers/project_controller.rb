@@ -18,7 +18,7 @@ class ProjectController < ApplicationController
   before_filter :load_requests, :only => [:delete, :view,
     :edit, :save, :add_repository_from_default_list, :add_repository, :save_targets, :status, :prjconf,
     :remove_person, :save_person, :add_person, :add_group, :remove_target,
-    :show, :monitor, :requests,
+    :show, :monitor, :requests, :scm,
     :packages, :users, :subprojects, :repositories, :attributes, :meta]
   before_filter :require_login, :only => [:save_new, :toggle_watch, :delete, :new]
   before_filter :require_available_architectures, :only => [:add_repository, :add_repository_from_default_list, 
@@ -833,6 +833,118 @@ class ProjectController < ApplicationController
     redirect_to :action => :users, :project => params[:project]
   end
 
+  def scm
+    session_id = request.session_options[:id]
+    scm_url = @project.name.sub(":","/")
+    scm_tmp_dir = "#{RAILS_ROOT}/tmp/#{session_id}-scm/#{@project.name}/"
+    logger.info "Getting SCM config"
+    if File.directory?(scm_tmp_dir)
+      system "rm -rf #{scm_tmp_dir}"
+    end
+    @scm_items = Array.new
+    system "#{SVN::BASE_CMD} co #{SVN::BASE_URL}#{scm_url} #{scm_tmp_dir}"
+    if $?.success?
+      d = Dir.new(scm_tmp_dir)
+      d.each do |package|
+        next if package =~ /^\..*/
+        s = ScmItem.new
+        s.package = package
+        s.tag = IO.read("#{scm_tmp_dir}/#{package}")
+        @scm_items.push s
+      end
+      d.close
+    else
+      flash[:error] = "SCM config unavailable!" 
+    end
+  end
+
+  def add_scm
+    render(:partial => 'add_scm', :locals => {:error => nil})
+  end
+
+  def create_scm
+    valid_http_methods :post
+    package=params[:package]
+    tag=params[:tag]
+    session_id = request.session_options[:id]
+    scm_url = @project.name.sub(":","/")
+    scm_tmp_dir = "#{RAILS_ROOT}/tmp/#{session_id}-scm/#{@project.name}/"
+    logger.info "Creating SCM package: #{package} tag: #{tag}"
+    if !File.directory?(scm_tmp_dir)
+      system "#{SVN::BASE_CMD} co #{SVN::BASE_URL}#{scm_url} #{scm_tmp_dir}"
+    end
+    if !File.exists?("#{scm_tmp_dir}/#{package}")
+      system "echo #{tag} > #{scm_tmp_dir}/#{package}"
+      system "#{SVN::BASE_CMD} add #{scm_tmp_dir}/#{package}"
+      system "#{SVN::BASE_CMD} commit -m \"SCM webui add: package: #{package} tag: #{tag}\" #{scm_tmp_dir}"
+      if $?.success?
+        flash[:note] = "Package successfully added! (#{package}:#{tag})"
+      else
+        flash[:error] = "SVN commit failed!" 
+      end
+    else
+      flash[:error] = "Package: #{package} already exists!"
+    end
+    Project.free_cache params[:project]
+    redirect_to :action => :scm, :project => params[:project]
+  end
+
+  def edit_scm
+    package = params[:package]
+    tag = params[:tag]
+    render(:partial => 'edit_scm', :locals => {:package => package, :tag => tag, :error => nil})
+  end
+
+  def update_scm
+    valid_http_methods :post
+    package=params[:package]
+    tag=params[:tag]
+    session_id = request.session_options[:id]
+    scm_url = @project.name.sub(":","/")
+    scm_tmp_dir = "#{RAILS_ROOT}/tmp/#{session_id}-scm/#{@project.name}/"
+    logger.info "Updating SCM package: #{package} tag: #{tag}"
+    if !File.directory?(scm_tmp_dir)
+      system "#{SVN::BASE_CMD} co #{SVN::BASE_URL}#{scm_url} #{scm_tmp_dir}"
+    end
+    if File.exists?("#{scm_tmp_dir}/#{package}")
+      system "echo #{tag} > #{scm_tmp_dir}/#{package}"
+      system "#{SVN::BASE_CMD} commit -m \"SCM webui edit: package: #{package} tag: #{tag}\" #{scm_tmp_dir}"
+      if $?.success?
+        flash[:note] = "Tag successfully updated! (#{package}:#{tag})"
+      else
+        flash[:error] = "SVN update failed!" 
+      end
+    else
+      flash[:error] = "Package: #{package} not found!"
+    end
+    Project.free_cache params[:project]
+    redirect_to :action => :scm, :project => params[:project]
+  end
+
+  def delete_scm
+    valid_http_methods :get
+    package=params[:package]
+    session_id = request.session_options[:id]
+    scm_url = @project.name.sub(":","/")
+    scm_tmp_dir = "#{RAILS_ROOT}/tmp/#{session_id}-scm/#{@project.name}/"
+    logger.info "Deleting SCM package: #{package}"
+    if !File.directory?(scm_tmp_dir)
+      system "#{SVN::BASE_CMD} co #{SVN::BASE_URL}#{scm_url} #{scm_tmp_dir}"
+    end
+    if File.exists?("#{scm_tmp_dir}/#{package}")
+      system "#{SVN::BASE_CMD} delete #{scm_tmp_dir}/#{package}"
+      system "#{SVN::BASE_CMD} commit -m \"SCM webui delete: package: #{package}\" #{scm_tmp_dir}"
+      if $?.success?
+        flash[:note] = "Package successfully deleted! (#{package})"
+      else
+        flash[:error] = "SVN update failed!" 
+      end
+    else
+      flash[:error] = "Package: #{package} not found!"
+    end
+    Project.free_cache params[:project]
+    redirect_to :action => :scm, :project => params[:project]
+  end
 
   def monitor
     @name_filter = params[:pkgname]

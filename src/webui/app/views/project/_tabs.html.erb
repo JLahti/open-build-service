@@ -22,12 +22,14 @@
     <% if @project.has_element?(:repository) && !@spider_bot -%>
       <%= tab "Monitor", :controller => :project, :action => :monitor %>
     <% end -%>
+    <% if defined?( SCM ) && SCM == 'on' %>
+      <%= tab 'SCM', :controller => :project, :action => :scm %>
+    <% end -%>
     <% unless @spider_bot -%>
       <%= tab "Requests", :controller => :project, :action => 'requests' %>
       <%= tab 'Users', :controller => :project, :action => :users unless @project.is_remote? %>
       <%= tab 'Subprojects', :controller => :project, :action => :subprojects unless @project.is_remote? or @is_maintenance_project %>
     <% end -%>
-
     <% if @controller.is_advanced_tab? %>
       <% content_for :ready_function do %>
         $("#advanced_tabs").show();

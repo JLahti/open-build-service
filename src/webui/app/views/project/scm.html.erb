@@ -1,0 +1,44 @@
+<% @pagetitle = "Project #{@project} SCM Configuration"
+   @metarobots = "noindex,nofollow"
+   project_bread_crumb( 'SCM' ) -%>
+
+<%= render :partial => "tabs" %>
+
+  <% if !@scm_items.empty? %>
+    <table class="buildstatus">
+      <!-- repo row -->
+      <thead class="header">
+        <!-- header row -->
+        <tr>
+          <th>Package</th>
+          <th>Tag</th>
+          <th></th>
+          <th></th>
+       </tr>
+      </thead>
+     <tbody>      <!-- package rows -->
+        <% @scm_items.each do |si| -%>
+          <tr>
+            <td class="nowrap">
+              <%= si.package %>
+            </td>
+            <td>
+              <%= si.tag %>
+            </td>
+            <td>
+              <%= link_to_remote("Edit", :update => :scm_edit_box, :url => {:action => :edit_scm, :project => @project, :package => si.package, :tag => si.tag}) %>
+            </td>
+            <td>
+              <%= link_to("Delete", {:controller => :project, :action => :delete_scm, :project => @project, :package => si.package}, :confirm => "Really delete #{si.package}?") %>
+            </td>
+          </tr>
+        <% end -%>
+        <tr><td colspan="4">
+          <%= link_to_remote("Add package", :update => :scm_edit_box, :url => {:action => :add_scm, :project => @project}) %>
+        </td></tr>
+      </tbody>
+    </table>
+    <div id="scm_edit_box"></div>
+  <% end %>
+
+

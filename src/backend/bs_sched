@@ -5234,7 +5234,7 @@ while(1) {
     next;
   }
 
-  my $crossenabled = 0;
+  my $crossenabled = 1;
   $crossenabled = enabled($repoid, $projpacks->{$projid}->{'cross'}, $crossenabled);
 
   my $bconf = getconfig($myarch, $prpsearchpath{$prp}, $crossenabled);

@@ -1,0 +1,19 @@
+<div class="box" style="margin: 1em">
+
+  <div class="box-header aligncenter"><strong>Edit <%= h(package) %></strong></div>
+  <% if local_assigns[:error] %>
+    <div class="message error"><%= error %></div>
+  <% end %>
+
+<% form_tag :action => :update_scm do %>
+  <p>
+    <strong><%= package %></strong><br/>
+    <%= text_field_tag "tag", tag, :size => 10 %><br/>
+    <%= hidden_field_tag "package", package %>
+    <%= hidden_field_tag "project", @project.name %>
+  </p>
+  <p><%= submit_tag %></p>
+<% end %>
+
+  </div>
+</div>

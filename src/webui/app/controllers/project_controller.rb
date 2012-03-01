@@ -854,7 +854,7 @@ class ProjectController < ApplicationController
       end
       d.close
     else
-      flash[:error] = "SCM config unavailable!" 
+      flash[:error] = "SCM config unavailable @ #{SVN::BASE_URL}#{scm_url}!" 
     end
   end
 

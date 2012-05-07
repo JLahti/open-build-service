@@ -1,5 +1,5 @@
 #! /bin/sh
-# Copyright (c) 2010, Novell Inc.
+# Copyright (c) 2010-12, SUSE Inc.
 #
 # Author: adrian@suse.de
 #
@@ -22,7 +22,9 @@
 . /etc/rc.status
 
 # package or appliance defaults
-source /etc/sysconfig/obs-server
+if [ -e /etc/sysconfig/obs-server ]; then
+  source /etc/sysconfig/obs-server
+fi
 
 # instance defaults
 if [ -e /etc/buildhost.config ]; then
@@ -142,7 +144,8 @@ case "$1" in
 	       			echo "/obs already exists !"
                		        exit 1
                		fi
-			ln -sf $backenddir /obs
+			[ -L /obs ] && rm /obs
+			ln -s $backenddir /obs
                 fi
 
 		# Only used if there is a local BSConfig
@@ -195,7 +198,7 @@ EOF
 		fi
 
 		if [ "$OBS_SETUP_WORKER_PARTITIONS" = "take_all" -o "$OBS_SETUP_WORKER_PARTITIONS" = "use_obs_vg" ]; then
-			if [ "$OBS_WORKER_INSTANCES" -gt 0 ]; then
+			if [ 0"$OBS_WORKER_INSTANCES" -gt 0 ]; then
 				# got config setting from sysconfig or PXE server
 				NUM="$OBS_WORKER_INSTANCES"
 			else
@@ -216,8 +219,8 @@ EOF
 				fi
 			fi
 			if [ ! "0$NUM" -gt 0 ]; then
-				echo "ERROR: OBS worker instances are 0, either misconfiguration or not enough resources"
-				exit 1
+				echo "WARNING: OBS worker instances are 0, either misconfiguration or not enough resources"
+				exit 0
 			fi
 
 			# Look for PV devices in OBS VG
@@ -242,7 +245,7 @@ EOF
 			fi
 
 			if [ -z "$OBS_WORKER_ROOT_SIZE" ]; then
-				VG_SIZE=`vgdisplay OBS --units M | grep "Free  PE" | sed 's,.* \([^ ]*\)\..*MB$,\1,'`
+				VG_SIZE=`vgdisplay -c OBS | awk -F':' '{print( int(int($12) / 1024) )}'`
 				VG_SIZE=$(( $VG_SIZE - $OBS_WORKER_CACHE_SIZE - ( $NUM * $OBS_WORKER_SWAP_SIZE ) ))
 				OBS_WORKER_ROOT_SIZE=$(( $VG_SIZE / $NUM ))
 				if test $OBS_WORKER_ROOT_SIZE -lt $(( 4 * 1024 )); then
@@ -313,6 +316,10 @@ EOF
 			mkfs -text4 /dev/OBS/cache || exit
 		fi
 
+		if [ ! "0$NUM" -gt 0 ]; then
+			exit 0
+		fi
+
 		echo "Looking for OBS Worker Cache LVM Volume"
                 if [ -e /dev/OBS/cache ]; then
 			mkdir -p $OBS_WORKER_DIRECTORY
@@ -341,7 +348,7 @@ EOF
 		                # support virtio
 		                # FIXME: find a better way to do this without getting remove by kiwi again.
 		                if ! grep -q "^INITRD_MODULES=.*virtio_pci virtio_blk" /etc/sysconfig/kernel; then
-		                   sed -i 's,^INITRD_MODULES="\(.*\)",INITRD_MODULES="\1 loop dm-mod dm-snapshot binfmt-misc fuse kqemu squashfs ext2 ext3 ext4 reiserfs binfmt_misc virtio_pci virtio_blk",' /etc/sysconfig/kernel
+		                   sed -i 's,^INITRD_MODULES="\(.*\)",INITRD_MODULES="\1 loop dm-mod dm-snapshot binfmt-misc fuse kqemu squashfs ext2 ext3 ext4 reiserfs nf_conntrack_ipv6 binfmt_misc virtio_pci virtio_blk",' /etc/sysconfig/kernel
 		                   mkinitrd || unset RUN_VIRT
 		                fi
 			else
@@ -362,6 +369,7 @@ EOF
 			else
 				#plain chroot build
 				mkdir -p "$OBS_WORKER_DIRECTORY/$name"
+				mkfs -text4 $i || exit
 				mount $i "$OBS_WORKER_DIRECTORY/$name"
 			fi
 			OBS_WORKER_INSTANCES=$(( $OBS_WORKER_INSTANCES + 1 ))

@@ -1,10 +1,43 @@
+require 'net/http'
+
 class HomeController < ApplicationController
 
-  before_filter :require_login, :except => [:my_work]
-  before_filter :check_user
+  before_filter :require_login, :except => [:my_work, :icon]
+  before_filter :check_user, :except => [:icon]
   before_filter :overwrite_user, :only => [:index, :my_work, :requests, :list_my]
 
   def index
+  end
+
+  def icon
+    user = params[:id]
+    size = params[:size] || '20'
+    key = "home_face_#{user}_#{size}"
+    Rails.cache.delete(key) if discard_cache?
+    content = Rails.cache.fetch(key, :expires_in => 5.hour) do
+
+      email = Person.email_for_login(user)
+      hash = Digest::MD5.hexdigest(email.downcase)
+      http = Net::HTTP.new("www.gravatar.com")
+      begin
+        http.start
+        response, content = http.get "/avatar/#{hash}?s=#{size}&d=wavatar"
+	content = nil unless response.is_a?(Net::HTTPSuccess)
+      rescue SocketError, Errno::EINTR, Errno::EPIPE, EOFError, Net::HTTPBadResponse, IOError, Errno::ETIMEDOUT, Errno::ECONNREFUSED => err
+	logger.debug "#{err} when fetching http://www.gravatar.com/avatar/#{hash}?s=#{size}"
+        http = nil
+      end
+      http.finish if http
+
+      unless content
+        f = File.open("#{RAILS_ROOT}/public/images/local/default_face.png", "r")
+        content = f.read
+        f.close
+      end
+      content
+    end
+
+    render :text => content, :layout => false, :content_type => "image/png"
   end
 
   def my_work
@@ -14,6 +47,7 @@ class HomeController < ApplicationController
     end
     @declined_requests, @open_reviews, @new_requests = @displayed_user.requests_that_need_work(:cache => false)
     @open_patchinfos = @displayed_user.running_patchinfos(:cache => false)
+    session[:requests] = (@declined_requests + @open_reviews  + @new_requests).each.map {|r| Integer(r.value(:id)) }
     respond_to do |format|
       format.html
       format.json do
@@ -29,6 +63,7 @@ class HomeController < ApplicationController
 
   def requests
     @requests = @displayed_user.involved_requests(:cache => false)
+    session[:requests] = @requests.each.map {|r| Integer(r.value(:id)) }
   end
 
   def home_project

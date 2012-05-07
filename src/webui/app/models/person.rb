@@ -138,7 +138,7 @@ class Person < ActiveXML::Base
   end
 
   def running_patchinfos(opts = {})
-    cachekey = "#{login}_patchinfos_that_need_work"
+    cachekey = "#{login}_patchinfos_that_need_work2"
     Rails.cache.delete cachekey unless opts[:cache]
     return Rails.cache.fetch(cachekey, :expires_in => 10.minutes) do
       array = Array.new
@@ -147,34 +147,38 @@ class Person < ActiveXML::Base
         hash = { :package => { :project => pi.project, :name => pi.name } }
         issues = Array.new
 
-        # get users open issues for package
-        path = "/source/#{CGI.escape(pi.project)}/#{CGI.escape(pi.name)}?view=issues&states=OPEN&login='#{CGI.escape(login)}'"
-        frontend = ActiveXML::Config::transport_for( :package )
-        answer = frontend.direct_http URI(path), :method => "GET"
-        doc = ActiveXML::Base.new(answer)
-        doc.each("/package/issue") do |s|
-          i = {}
-          i[:name]= s.find_first("name").text
-          i[:issue_tracker]= s.find_first("issue_tracker").text
-          i[:long_name]= s.find_first("long_name").text
-          i[:url]= s.find_first("url").text
-          if description=s.find_first("description")
-            i[:description] = description.text
+        begin
+          # get users open issues for package
+          path = "/source/#{URI.escape(pi.project)}/#{URI.escape(pi.name)}?view=issues&states=OPEN&login=#{CGI.escape(login)}"
+          frontend = ActiveXML::Config::transport_for( :package )
+          answer = frontend.direct_http URI(path), :method => "GET"
+          doc = ActiveXML::Base.new(answer)
+          doc.each("/package/issue") do |s|
+            i = {}
+            i[:name]= s.find_first("name").text
+            i[:tracker]= s.find_first("tracker").text
+            i[:label]= s.find_first("label").text
+            i[:url]= s.find_first("url").text
+            if summary=s.find_first("summary")
+              i[:summary] = summary.text
+            end
+            if state=s.find_first("state")
+              i[:state] = state.text
+            end
+            if login=s.find_first("login")
+              i[:login] = login.text
+            end
+            if updated_at=s.find_first("updated_at")
+              i[:updated_at] = updated_at.text
+            end
+            issues << i
           end
-          if state=s.find_first("state")
-            i[:state] = state.text
-          end
-          if login=s.find_first("login")
-            i[:login] = login.text
-          end
-          if updated_at=s.find_first("updated_at")
-            i[:updated_at] = updated_at.text
-          end
-          issues << i
-        end
 
-        hash[:issues] = issues
-        array << hash
+          hash[:issues] = issues
+          array << hash
+        rescue ActiveXML::Transport::NotFoundError => e
+          # Ugly catch for projects that where deleted while this loop is running... bnc#755463)
+        end
       end
       return array
     end
@@ -221,10 +225,16 @@ class Person < ActiveXML::Base
   def has_role?(role, project, package = nil)
     if package
       package = Package.find_cached(:project => project, :package => package) if package.class == String
-      return true if package.user_has_role?(login, role)
+      if package && package.user_has_role?(login, role)
+        return true
+      end
     end
     project = Project.find_cached(project) if project.class == String
-    return project.user_has_role?(login, role)
+    if project
+      return project.user_has_role?(login, role)
+    else
+      return false
+    end
   end
 
   def self.list(prefix=nil)

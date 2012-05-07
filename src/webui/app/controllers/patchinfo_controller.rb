@@ -1,7 +1,7 @@
 class PatchinfoController < ApplicationController
   include ApplicationHelper
-  before_filter :require_all, :get_tracker
-  before_filter :get_tracker, :except => [:show, :delete]
+  before_filter :require_all
+  before_filter :get_tracker, :get_binaries, :except => [:show, :delete]
   before_filter :require_exists, :except => [:new_patchinfo]
   helper :package
 
@@ -24,7 +24,12 @@ class PatchinfoController < ApplicationController
       redirect_to :controller => 'package', :action => 'show', :project => @project, :package => @package and return
     end
 
-    read_patchinfo 
+    read_patchinfo
+    @binaries.each do |bin|
+      if @binarylist.match(bin)
+        @binarylist.delete(bin)
+      end
+    end
   end
 
   def updatepatchinfo
@@ -37,28 +42,24 @@ class PatchinfoController < ApplicationController
   def edit_patchinfo
     read_patchinfo
     @tracker = "bnc"
+    @binaries.each do |bin|
+      if @binarylist.find(bin)
+        @binarylist.delete(bin)
+      end
+    end
   end
 
   def show
     read_patchinfo
+    @pkg_names = Array.new
+    packages = find_cached(Package, :all, :project => @project.name, :expires_in => 30.seconds )
+    packages.each do |pkg|
+      @pkg_names << pkg.value(:name)
+    end
+    @pkg_names.delete("patchinfo")
     @description = @description.gsub(/\n/, "<br/>").html_safe
     @summary = @summary.gsub(/\n/, "<br/>").html_safe
-    if @relogin == true
-      @relogin = "yes"
-    elsif @relogin == false
-      @relogin = "no"
-    end
-    if @reboot == true
-      @reboot ="yes"
-    elsif @reboot == false
-      @reboot = "no"
-    end
-    if @zypp_restart_needed == true
-      @zypp_restart_needed = "yes"
-    end
-    if @zypp_restart_needed == false
-      @zypp_restart_needed = "no"
-    end
+    @packager = Person.find(:login => @packager)
   end
 
   def read_patchinfo
@@ -74,7 +75,7 @@ class PatchinfoController < ApplicationController
     if @file.has_element?("issue")
       @file.each_issue do |a|
         if a.text == ""
-          get_issue_desc(a.value(:id), a.tracker)
+          get_issue_sum(a.value(:id), a.tracker)
         end
         issue = Array.new
         issueid = a.value(:id)
@@ -121,6 +122,10 @@ class PatchinfoController < ApplicationController
     else
       @zypp_restart_needed = false
     end
+    if @file.has_element?("stopped")
+      @block = true
+      @block_reason = @file.stopped.text
+    end
   end
 
   def save
@@ -146,17 +151,19 @@ class PatchinfoController < ApplicationController
     if valid_params == true
       name = "binary"
       packager = params[:packager]
-      binaries = params[:binaries]
+      binaries = params[:selected_binaries]
       relogin = params[:relogin]
       reboot = params[:reboot]
       zypp_restart_needed = params[:zypp_restart_needed]
-      issues = Array.new
-      params[:issue].each_with_index do |new_issue, index|
-        issue = Array.new
-        issue << new_issue
-        issue << params[:issuetracker][index]
-        issue << params[:issuedesc][index]
-        issues << issue
+      if params[:issue]
+        issues = Array.new
+        params[:issue].each_with_index do |new_issue, index|
+          issue = Array.new
+          issue << new_issue
+          issue << params[:issuetracker][index]
+          issue << params[:issuesum][index]
+          issues << issue
+        end
       end
       rating = params[:rating]
       node = Builder::XmlMarkup.new(:indent=>2)
@@ -165,17 +172,21 @@ class PatchinfoController < ApplicationController
       xml = node.patchinfo(attrs) do |n|
         if binaries
           binaries.each do |binary|
-            node.binary(binary)
+            if !binary.blank?
+              node.binary(binary)
+            end
           end
         end
         node.packager    packager
-        issues.each do |issue|
-          node.issue(issue[2], :tracker=>issue[1], :id=>issue[0])
+        if issues
+          issues.each do |issue|
+            node.issue(issue[2], :tracker=>issue[1], :id=>issue[0])
+          end
         end
         node.category    params[:category]
         node.rating      rating
         node.summary     params[:summary]
-        node.description params[:description]
+        node.description params[:description].gsub("\r\n", "\n")
         if reboot
           node.reboot_needed
         end
@@ -185,16 +196,13 @@ class PatchinfoController < ApplicationController
         if zypp_restart_needed
           node.zypp_restart_needed
         end
+        if params[:block] == "true"
+          node.stopped  params[:block_reason]
+        end
       end
       begin
         frontend.put_file( xml, :project => @project,
-          :package => @package, :filename => filename,
-          :packager => [:packager], :category => [:category],
-          :rating => [:rating], :issue => [:issue], 
-          :binarylist => [:binarylist], :binaries => [:binaries],
-          :summary => [:summary], :description => [:description],
-          :relogin => [:relogin], :reboot => [:reboot],
-          :zypp_restart_needed => [:zypp_restart_needed])
+          :package => @package, :filename => filename)
         flash[:note] = "Successfully edited #{@package}"
       rescue Timeout::Error => e
         flash[:error] = "Timeout when saving file. Please try again."
@@ -206,14 +214,15 @@ class PatchinfoController < ApplicationController
     if valid_params == false
       @tracker = params[:tracker]
       @packager = params[:packager]
-      @binaries = params[:binaries]
+      @binaries = params[:selected_binaries]
+      @binarylist = params[:available_binaries]
       @issues = Array.new
       params[:issue].each_with_index do |new_issue, index|
         issue = Array.new
         issue << new_issue
         issue << params[:issuetracker][index]
         issue << params[:issueurl][index]
-        issue << params[:issuedesc][index]
+        issue << params[:issuesum][index]
         @issues << issue
       end
       @category = params[:category]
@@ -223,6 +232,8 @@ class PatchinfoController < ApplicationController
       @relogin = params[:relogin]
       @reboot = params[:reboot]
       @zypp_restart_needed = params[:zypp_restart_needed]
+      @block = params[:block]
+      @block_reason = params[:block_reason]
       render :action => "edit_patchinfo", :project => @project, :package => @package
     end
   end
@@ -261,12 +272,12 @@ class PatchinfoController < ApplicationController
     issueurl = issueurl.each("/issue-tracker/show-url").first.text
     issueurl = issueurl.sub(/@@@/, params[:issueid])
     @issue << issueurl
-    get_issue_desc(params[:issueid], params[:tracker])
-    @issue << @issuedesc
+    get_issue_sum(params[:issueid], params[:tracker])
+    @issue << @issuesum
     render :nothing => true, :json => @issue
   end
 
-  def get_issue_desc(issueid, tracker)
+  def get_issue_sum(issueid, tracker)
     if tracker != "cve"
       bug = tracker + "#" + issueid
     else
@@ -281,14 +292,15 @@ class PatchinfoController < ApplicationController
     if bug =~ regexp
       path = "/issue_trackers/#{CGI.escape(tracker)}/issues/#{CGI.escape(issueid)}"
       result = ActiveXML::Base.new(frontend.transport.direct_http( URI(path), :method => "GET" ))
-      if result.description == nil
+      if result.summary == nil
         path = "/issue_trackers/#{CGI.escape(tracker)}/issues/#{CGI.escape(issueid)}?force_update=1"
         result = ActiveXML::Base.new(frontend.transport.direct_http( URI(path), :method => "GET" ))
       end
-      @issuedesc = result.description.text if result.description
-      @issuedesc = "" if !result.description
+      @issuesum = result.summary.text if result.summary
+      @issuesum = "" if !result.summary
+      @issuesum.gsub!(/\\|'/) { |c| "" }
     else
-      @issuedesc = "invalid"
+      @issuesum = "invalid"
     end
   end 
     
@@ -303,13 +315,7 @@ class PatchinfoController < ApplicationController
     @trackerlist.unshift(@trackerlist.delete_at(@trackerlist.index("bnc")))
   end
 
-  def require_all
-    @project = find_cached(Project, params[:project] )
-    unless @project
-      flash[:error] = "Project not found: #{params[:project]}"
-      redirect_to :controller => "project", :action => "list_public"
-      return
-    end
+  def get_binaries
     @binarylist = Array.new
     @binary_list = Buildresult.find(:project => params[:project], :view => 'binarylist')
     @binary_list.each_result do |r|
@@ -321,6 +327,16 @@ class PatchinfoController < ApplicationController
     end
     @binarylist.uniq!
     @binarylist.delete("rpmlint.log")
+    @binarylist.delete("updateinfo.xml")
+  end
+
+  def require_all
+    @project = find_cached(Project, params[:project] )
+    unless @project
+      flash[:error] = "Project not found: #{params[:project]}"
+      redirect_to :controller => "project", :action => "list_public"
+      return
+    end
   end
 
   def require_exists

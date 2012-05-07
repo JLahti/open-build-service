@@ -399,13 +399,17 @@ class Project < ActiveXML::Base
   end
 
   # Returns maintenance incidents by type for current project (if any)
-  def maintenance_incidents(type = 'open')
+  def maintenance_incidents(type = 'open', opts = {})
     predicate = "starts-with(@name,'#{self.name}:') and @kind='maintenance_incident'"
     case type
       when 'open' then predicate += " and repository/releasetarget/@trigger='maintenance'"
       when 'closed' then predicate += " and not(repository/releasetarget/@trigger='maintenance')"
     end
-    return Collection.find_cached(:what => 'project', :predicate => predicate).each
+    path = "/search/project/?match=#{CGI.escape(predicate)}"
+    path += "&limit=#{opts[:limit]}" if opts[:limit]
+    path += "&offset=#{opts[:offset]}" if opts[:offset]
+    result = ActiveXML::Config::transport_for(:project).direct_http(URI(path))
+    return Collection.new(result).each
   end
 
   def patchinfo
@@ -426,25 +430,25 @@ class Project < ActiveXML::Base
   end
 
   def issues
-    return Rails.cache.fetch("changes_and_patchinfo_issues_#{self.name}", :expires_in => 5.minutes) do
+    return Rails.cache.fetch("changes_and_patchinfo_issues_#{self.name}2", :expires_in => 5.minutes) do
       issues = Project.find_cached(:issues, :name => self.name, :expires_in => 5.minutes)
       if issues
         changes_issues, patchinfo_issues = {}, {}
         issues.each(:package) do |package|
           package.each(:issue) do |issue|
             if package.value('name') == 'patchinfo'
-              patchinfo_issues[issue.value('long_name')] = issue
+              patchinfo_issues[issue.value('label')] = issue
             else
-              changes_issues[issue.value('long_name')] = issue
+              changes_issues[issue.value('label')] = issue
             end
           end
         end
         missing_issues, optional_issues = {}, {}
-        changes_issues.each do |long_name, issue|
-          optional_issues[long_name] = issue unless patchinfo_issues.has_key?(long_name)
+        changes_issues.each do |label, issue|
+          optional_issues[label] = issue unless patchinfo_issues.has_key?(label)
         end
-        patchinfo_issues.each do |long_name, issue|
-          missing_issues[long_name] = issue unless changes_issues.has_key?(long_name)
+        patchinfo_issues.each do |label, issue|
+          missing_issues[label] = issue unless changes_issues.has_key?(label)
         end
         {:changes => changes_issues, :patchinfo => patchinfo_issues, :missing => missing_issues, :optional => optional_issues}
       else
@@ -454,14 +458,14 @@ class Project < ActiveXML::Base
   end
 
   def release_targets_ng
-    return Rails.cache.fetch("incident_release_targets_ng_#{self.name}", :expires_in => 5.minutes) do
+    return Rails.cache.fetch("incident_release_targets_ng_#{self.name}2", :expires_in => 5.minutes) do
       # First things first, get release targets as defined by the project, err.. incident. Later on we
       # magically find out which of the contained packages, err. updates are build against those release
       # targets.
       release_targets_ng = {}
       self.each(:repository) do |repo|
         if repo.has_element?(:releasetarget)
-          release_targets_ng[repo.releasetarget.value('project')] = {:reponame => repo.value('name'), :packages => [], :patchinfo => nil, :package_issues => {}}
+          release_targets_ng[repo.releasetarget.value('project')] = {:reponame => repo.value('name'), :packages => [], :patchinfo => nil, :package_issues => {}, :package_issues_by_tracker => {}}
         end
       end
 
@@ -475,7 +479,12 @@ class Project < ActiveXML::Base
           if pkg_name == 'patchinfo'
             # Holy crap, we found a patchinfo that is specific to (at least) one release target!
             pi = Patchinfo.find_cached(:project => self.name, :package => pkg_name)
-            release_targets_ng[rt_name][:patchinfo] = pi
+            begin
+              release_targets_ng[rt_name][:patchinfo] = pi
+            rescue 
+              #TODO FIXME ARGH: API/backend need some work to support this better.
+              # Until then, multiple patchinfos are problematic
+            end
           else
             # Here we try hard to find the release target our current package is build for:
             found = false
@@ -516,7 +525,10 @@ class Project < ActiveXML::Base
               linkdiff = pkg.linkdiff()
               if linkdiff && linkdiff.has_element?('issues')
                 linkdiff.issues.each(:issue) do |issue|
-                  release_targets_ng[rt_name][:package_issues][issue.value('long-name')] = issue
+                  release_targets_ng[rt_name][:package_issues][issue.value('label')] = issue
+
+                  release_targets_ng[rt_name][:package_issues_by_tracker][issue.value('tracker')] ||= []
+                  release_targets_ng[rt_name][:package_issues_by_tracker][issue.value('tracker')] << issue
                 end
               end
             end
@@ -537,12 +549,7 @@ class Project < ActiveXML::Base
   end
 
   def is_locked?
-      flagdetails = Project.find_cached(self.name, :view => 'flagdetails')
-      if flagdetails.has_element?('lock') && flagdetails.lock.has_element?('enable')
-        return true
-      else
-        return false
-      end
+    return has_element?('lock') && lock.has_element?('enable')
   end
 
   def requests(opts)
@@ -579,7 +586,7 @@ class Project < ActiveXML::Base
         end
       end
     end
-    if repository
+    if repository && repository_states.has_key?(repository)
       return false if repository_states[repository].empty? # No buildresult is bad
       repository_states[repository].each do |state, count|
         return false if ['broken', 'failed', 'unresolvable'].include?(state)

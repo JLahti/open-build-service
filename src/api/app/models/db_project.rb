@@ -41,6 +41,8 @@ class DbProject < ActiveRecord::Base
   has_many  :develprojects, :class_name => "DbProject", :foreign_key => 'develproject_id'
   belongs_to :develproject, :class_name => "DbProject"
 
+  attr_accessible :name, :title, :description
+
   def download_name
     self.name.gsub(/:/, ':/')
   end
@@ -71,6 +73,17 @@ class DbProject < ActiveRecord::Base
           logger.info "updating project '#{link_prj.name}'"
           Suse::Backend.put_source "/source/#{link_prj.name}/_meta", link_prj.to_axml
         end
+      end
+    end
+    # deleting local devel packages
+    self.db_packages.each do |pkg|
+      if pkg.develpackage_id
+        pkg.develpackage_id = nil
+        pkg.save
+      end
+      if pkg.develproject_id
+        pkg.develproject_id = nil
+        pkg.save
       end
     end
   end
@@ -178,10 +191,9 @@ class DbProject < ActiveRecord::Base
           options[:joins] = "" if options[:joins].nil?
           options[:joins] += " LEFT JOIN flags f ON f.db_project_id = db_projects.id AND (ISNULL(f.flag) OR flag = 'access')" # filter projects with or without access flag
           options[:joins] += " LEFT OUTER JOIN project_user_role_relationships ur ON ur.db_project_id = db_projects.id"
-          options[:joins] += " LEFT OUTER JOIN users u ON ur.bs_user_id = u.id"
           options[:group] = "db_projects.id" unless options[:group] # is creating a DISTINCT select to have uniq results
 
-          cond = "((f.flag = 'access' AND u.login = '#{User.current ? User.current.login : "_nobody_"}') OR ISNULL(f.flag))"
+          cond = "((f.flag = 'access' AND ur.bs_user_id = #{User.current ? User.currentID : User.nobodyID}) OR ISNULL(f.flag))"
           if options[:conditions].nil?
             options[:conditions] = cond
           else
@@ -447,6 +459,19 @@ class DbProject < ActiveRecord::Base
         end
         processed[prj_name] = 1
         prj = prj.develproject
+      end
+
+      #--- maintenance-related parts ---#
+      # First remove all maintained project relations
+      maintained_projects.each do |maintained_project|
+        maintained_project.maintenance_project_id = nil
+        maintained_project.save!
+      end
+      # Set this project as the maintenance project for all maintained projects found in the XML
+      project.each("maintenance/maintains") do |maintains|
+        maintained_project = DbProject.get_by_name(maintains.value('project'))
+        maintained_project.maintenance_project_id = self.id
+        maintained_project.save!
       end
 
       #--- update users ---#
@@ -772,16 +797,17 @@ class DbProject < ActiveRecord::Base
     end #transaction
   end
 
-  def store(login=nil, lowprio=false)
+  def store(opt={})
     # update timestamp and save
     self.save!
     # expire cache
     Rails.cache.delete('meta_project_%d' % id)
 
     if write_through?
-      login = User.current.login unless login # Allow to override if User.current isn't available yet
-      path = "/source/#{self.name}/_meta?user=#{URI.escape(login)}"
-      path += "&lowprio=1" if lowprio
+      login = User.current.login unless opt[:login] # Allow to override if User.current isn't available yet
+      path = "/source/#{self.name}/_meta?user=#{CGI.escape(login)}"
+      path += "&comment=#{CGI.escape(opt[:comment])}" unless opt[:comment].blank?
+      path += "&lowprio=1" if opt[:lowprio]
       Suse::Backend.put_source( path, to_axml )
     end
 

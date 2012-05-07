@@ -1,6 +1,7 @@
 class Package < ActiveXML::Base
    
   handles_xml_element 'package'
+  to_hash_options :force_array => [:entry]
 
   #cache variables
   attr_accessor :linkinfo
@@ -334,7 +335,7 @@ class Package < ActiveXML::Base
   end
 
   def self.is_binary_file?(filename)
-    binary_extensions = %w{.0 .bin .bin_mid .bz .bz2 .ccf .cert .chk .der .dll .exe .fw .gem .gif .gz .jar .jpeg .jpg .lzma .ogg .otf .pdf .pk3 .png .ps .rpm .sig .svgz .tar .taz .tb2 .tbz .tbz2 .tgz .tlz .txz .xpm .xz .z .zip .ttf}
+    binary_extensions = %w{.0 .bin .bin_mid .bz .bz2 .ccf .cert .chk .der .dll .exe .fw .gem .gif .gz .jar .jpeg .jpg .lzma .ogg .otf .oxt .pdf .pk3 .png .ps .rpm .sig .svgz .tar .taz .tb2 .tbz .tbz2 .tgz .tlz .txz .xpm .xz .z .zip .ttf}
     binary_extensions.each do |ext|
       return true if filename.downcase.end_with?(ext)
     end
@@ -377,7 +378,7 @@ class Package < ActiveXML::Base
     linkdiff = self.linkdiff()
     if linkdiff.has_element?('issues')
       linkdiff.issues.each(:issue) do |issue|
-        issues[issue.value('long-name')] = issue
+        issues[issue.value('label')] = issue
       end
     end
     return issues

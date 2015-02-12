@@ -55,8 +55,8 @@
 
 <% if User.current.can_modify_project?(@project.api_obj) %>
     <p>
-      <%= link_to(sprite_tag('drive_add', title: 'Add repository'), :action => 'add_repository_from_default_list', :project => @project) %>
-      <%= link_to('Add repositories', :action => 'add_repository_from_default_list', :project => @project) %>
+      <%= link_to(sprite_tag('drive_add', title: 'Add repository'), :action => 'add_repository', :project => @project) %>
+      <%= link_to('Add repositories', :action => 'add_repository', :project => @project) %>
     </p>
 <% end %>
 

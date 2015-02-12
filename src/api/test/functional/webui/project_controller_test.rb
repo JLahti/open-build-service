@@ -122,8 +122,6 @@ class Webui::ProjectControllerTest < Webui::IntegrationTest
 
   test 'request project repository target removal' do
     use_js
-
-    # Let user1 create a project with a repo that others can request to delete
     login_adrian to: project_show_path(project: 'home:adrian')
     find(:link, 'Subprojects').click
     find(:link, 'Create subproject').click
@@ -131,9 +129,22 @@ class Webui::ProjectControllerTest < Webui::IntegrationTest
     find_button('Create Project').click
     find(:link, 'Repositories').click
     find(:link, 'Add repositories').click
-    find(:id, 'repo_images').click # aka "KIWI image build" checkbox
-    find_button('Add selected repositories').click
+
+    fill_autocomplete 'target_project', with: 'Local', select: 'LocalProject'
+
+    # wait for the ajax loader to disappear
+    page.wont_have_selector 'input[disabled]'
+
+    # wait for autoload of repos
+    find('#target_repo').select('pop')
+
+    find_field('repo_name').value.must_equal 'LocalProject_pop'
+    page.wont_have_selector '#add_repository_button[disabled]'
+    # somehow the autocomplete logic creates a problem - and click_button refuses to click
+    page.execute_script "$('#add_repository_button').click();"
+    find(:id, 'flash-messages').must_have_text 'Build targets were added successfully'
     page.must_have_link('Delete repository')
+
     logout
 
     # check that anonymous has no links
@@ -177,12 +188,6 @@ class Webui::ProjectControllerTest < Webui::IntegrationTest
     find_button('Create Project').click
     find('#tab-repositories a').click
     find(:link, 'Add repositories').click
-    find(:id, 'repo_images').click # aka "KIWI image build" checkbox
-    find_button('Add selected repositories').click
-    assert first(:id, 'images')
-
-    find(:link, 'Add repositories').click
-    find(:link, 'advanced interface').click
     fill_autocomplete 'target_project', with: 'Local', select: 'LocalProject'
 
     # wait for the ajax loader to disappear

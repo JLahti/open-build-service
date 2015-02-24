@@ -74,6 +74,7 @@ Patch29:	0029-webui-relax-the-monitor-test-case-a-bit-when-executi.patch
 Patch30:	0030-api-remove-reference-to-User-role-for-LDAP-issue-820.patch
 Patch31:	0031-api-Don-t-raise-error-if-password-is-empty-and-LDAP-.patch
 Patch32:	0032-Changing-the-add-repository-link-to-use-the-advanced.patch
+Patch33:	0033-Revert-webui-Hotfix-logfile-links-on-project-monitor.patch
 BuildRequires:  python-devel
 # make sure this is in sync with the RAILS_GEM_VERSION specified in the
 # config/environment.rb of the various applications.
@@ -372,6 +373,7 @@ obs_project_update is a tool to copy a packages of a project from one obs to ano
 %patch30 -p1
 %patch31 -p1
 %patch32 -p1
+%patch33 -p1
 # drop build script, we require the installed one from own package
 rm -rf src/build
 find . -name .git\* -o -name Capfile -o -name deploy.rb | xargs rm -rf

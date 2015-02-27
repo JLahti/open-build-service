@@ -37,7 +37,7 @@ Group:          Productivity/Networking/Web/Utilities
 %if 0%{?suse_version} < 1210 && 0%{?suse_version:1}
 %endif
 Version: 2.5.4.skytree39
-Release: 1
+Release: 2
 Url:            http://en.opensuse.org/Build_Service
 BuildRoot:      %{_tmppath}/%{name}-%{version}-build
 # Sources are retrieved using script which is attached as Source2
@@ -76,6 +76,7 @@ Patch31:	0031-api-Don-t-raise-error-if-password-is-empty-and-LDAP-.patch
 Patch32:	0032-Changing-the-add-repository-link-to-use-the-advanced.patch
 Patch33:	0033-Revert-webui-Hotfix-logfile-links-on-project-monitor.patch
 Patch34:	0034-Added-check-for-stuck-cmake-build-in-bs_worker.patch
+Patch35:	0035-bs_worker-changed-the-cmake-build-watcher-to-watch-a.patch
 BuildRequires:  python-devel
 # make sure this is in sync with the RAILS_GEM_VERSION specified in the
 # config/environment.rb of the various applications.
@@ -376,6 +377,7 @@ obs_project_update is a tool to copy a packages of a project from one obs to ano
 %patch32 -p1
 %patch33 -p1
 %patch34 -p1
+%patch35 -p1
 # drop build script, we require the installed one from own package
 rm -rf src/build
 find . -name .git\* -o -name Capfile -o -name deploy.rb | xargs rm -rf

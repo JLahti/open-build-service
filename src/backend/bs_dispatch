@@ -1209,18 +1209,28 @@ while (1) {
       }
       my @idle = List::Util::shuffle(@{$idlearch{$ic->{$job}->{'hostarch'} || $arch} || []});
       last unless @idle;
-      my %poweridle;
+      # separate the powerhosts from the pack
+      my @pidle;
+      for my $idle (@idle) {
+        my $idlehost = (split(':', $idle, 2))[1];
+        push @pidle, $idle if grep {$idlehost =~ /^$_/} @$BSConfig::powerhosts;
+      }
+      # First we check the powerjobs
       if ($powerjobs{$job}) {
 	# reduce to powerhosts
-	for my $idle (splice @idle) {
-	  my $idlehost = (split(':', $idle, 2))[1];
-	  push @idle, $idle if grep {$idlehost =~ /^$_/} @$BSConfig::powerhosts;
-	}
+	@idle = @pidle;
         if (!@idle) {
           printlog("job can not be assigned on $arch due to lack of powerhosts: $job");
           next;
         }
       }
+      # Next normal jobs
+      else {
+        if (@pidle) {
+          # Powerhosts were found. Using only them
+          @idle = @pidle;
+        }
+      }      
       my $tries = 0;
       my $haveassigned;
       my ($project, $repository, $arch) = split('/', $prpa, 3);

@@ -2581,7 +2581,7 @@ while (!BSServer::server($conf)) {
       my $tail = tail_logfile("$buildroot/.build.log", 250) || '';
       my $kill_job;
       my $info = readstr("$statedir/job");
-      $kill_job = "stuck cmake build" if $info =~ /<subpack>cmake<\/subpack>|<bdep name="cmake"/ && $ct - $s[9] > 300;
+      $kill_job = "stuck cmake build" if $info =~ /package="cmake"|<bdep name="cmake"/ && $ct - $s[9] > 300;
       $kill_job = "kvm memory page bug" if $tail =~ /BUG: unable to handle kernel NULL pointer dereference at/;
       $kill_job = "kvm spinnlock bug" if $tail =~ /INFO: rcu_sched self-detected stall on CPU/;
       $kill_job = "xen soft lockup" if $tail =~ /BUG: soft lockup - CPU#\d+ stuck for/;

@@ -154,14 +154,18 @@ class StatisticsController < ApplicationController
 
 
   def latest_updated
+    prj_filter = params[:prjfilter]
+    pkg_filter = params[:pkgfilter]
+
     if params[:timelimit].nil?
       @timelimit = Time.at(0)
     else
       @timelimit = params[:timelimit].to_i.day.ago
+      # Override the default, since we want to limit by the time here.                                                                                                                                                                             
       @limit = nil if params[:limit].nil?
     end
 
-    @list = get_latest_updated(@limit,@timelimit)
+    @list = get_latest_updated(@limit,@timelimit,prj_filter,pkg_filter)
   end
 
   def updated_timestamp

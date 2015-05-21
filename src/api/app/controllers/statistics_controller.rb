@@ -154,8 +154,17 @@ class StatisticsController < ApplicationController
 
 
   def latest_updated
-    prj_filter = params[:prjfilter]
-    pkg_filter = params[:pkgfilter]
+    if params[:prjfilter].nil?
+      prj_filter = ".*"
+    else
+      prj_filter = params[:prjfilter]
+    end
+
+    if params[:pkgfilter].nil?
+      pkg_filter = ".*"
+    else
+      pkg_filter = params[:pkgfilter]
+    end
 
     if params[:timelimit].nil?
       @timelimit = Time.at(0)

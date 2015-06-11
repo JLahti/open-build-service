@@ -4,7 +4,6 @@ class Webui::PatchinfoController < Webui::WebuiController
   before_filter :require_project
   before_filter :get_binaries, :except => [:show, :delete]
   before_filter :require_exists, :except => [:new_patchinfo]
-  before_filter :require_login, :except => [:show]
 
   def new_patchinfo
     unless User.current.can_create_package_in? @project.api_obj

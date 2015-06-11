@@ -11,6 +11,7 @@ class Webui::WebuiController < ActionController::Base
   before_filter :set_return_to, :reset_activexml, :authenticate
   before_filter :check_user
   before_filter :require_configuration
+  before_filter :require_login
   after_filter :clean_cache
 
   protect_from_forgery

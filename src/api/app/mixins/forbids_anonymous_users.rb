@@ -10,7 +10,8 @@ module ForbidsAnonymousUsers
   def require_login
     # we may allow anonymous GET operations (if configured) but we require
     # a valid account on other opertations
-    be_not_nobody! unless request.get?
+    # Skytree: no anonymous request allowed. Besides, the configuration doesn't seem to work
+    be_not_nobody! # unless request.get?
   end
 
   def be_not_nobody!

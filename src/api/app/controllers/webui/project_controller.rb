@@ -17,7 +17,6 @@ class Webui::ProjectController < Webui::WebuiController
                                               :save_new, :save_prjconf,
                                               :rebuild_time_png, :new_incident]
   before_filter :load_project_info, :only => [:show]
-  before_filter :require_login, :only => [:save_new, :toggle_watch, :delete, :new]
   before_filter :require_available_architectures, :only => [:add_repository, :add_repository_from_default_list,
                                                             :edit_repository, :update_target]
 

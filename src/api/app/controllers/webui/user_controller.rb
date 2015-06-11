@@ -8,7 +8,7 @@ class Webui::UserController < Webui::WebuiController
 
   before_filter :check_user, :only => [:edit, :save, :change_password, :register, :delete, :confirm,
                                        :lock, :admin, :login, :notifications, :update_notifications, :show]
-  before_filter :require_login, :only => [:edit, :save, :notifications, :update_notifications]
+  skip_before_filter :require_login, :only => [:login, :do_login]
   before_filter :overwrite_user, :only => [:show, :edit, :requests, :list_my]
   before_filter :require_admin, :only => [:edit, :delete, :lock, :confirm, :admin]
 

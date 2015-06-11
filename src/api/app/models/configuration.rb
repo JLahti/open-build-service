@@ -48,7 +48,9 @@ class Configuration < ActiveRecord::Base
     end
 
     def anonymous?
-      first.anonymous
+      # Skytree: Disable anonymous no matter what the configuration says
+      false
+      # first.anonymous
     end
    
     def registration

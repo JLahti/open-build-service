@@ -2,6 +2,7 @@ require File.expand_path(File.dirname(__FILE__) + "/..") + "/test_helper"
 
 class IssueTrackersControllerTest < ActionDispatch::IntegrationTest
   def test_should_get_index
+    login_adrian
     # Get all issue trackers
     get '/issue_trackers'
     assert_response :success

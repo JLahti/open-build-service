@@ -4,6 +4,7 @@ class DistributionsControllerTest < ActionDispatch::IntegrationTest
   fixtures :all
   
   test "should show distribution" do
+    login_king
     get distribution_path(id: distributions(:two).to_param)
     assert_response :success
     # the default XML renderer just s***s
@@ -70,10 +71,10 @@ class DistributionsControllerTest < ActionDispatch::IntegrationTest
     assert_response 200
 
     reset_auth
+    login_tom
     get "/distributions"
     assert_response :success
 
-    login_tom
     get "/distributions"
     assert_response :success
     assert_no_xml_tag :tag => "project", :content => "RemoteInstance:openSUSE:12.2"
@@ -123,6 +124,7 @@ class DistributionsControllerTest < ActionDispatch::IntegrationTest
 
 
   test "we survive remote instances timeouts" do
+    login_tom
     stub_request(:get, "http://localhost:3200/distributions.xml").to_timeout
     get "/distributions/include_remotes"
     assert_response :success

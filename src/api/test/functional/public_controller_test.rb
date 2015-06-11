@@ -10,11 +10,13 @@ class PublicControllerTest < ActionDispatch::IntegrationTest
   end
 
   def test_index
+    login_tom
     get "/public"
     assert_response 302
   end
 
   def test_basic_read_tests
+    login_tom
     get "/public/source/home:Iggy"
     assert_response :success
     get "/public/source/home:Iggy/_meta"
@@ -58,6 +60,7 @@ class PublicControllerTest < ActionDispatch::IntegrationTest
   end
 
   def test_lastevents
+    login_tom
     # very old route
     get "/lastevents"
     assert_response :success
@@ -68,17 +71,18 @@ class PublicControllerTest < ActionDispatch::IntegrationTest
     post "/public/lastevents", nil
     assert_response :success
     # new method (OBS 2.3) using credentials
-    login_tom
     post "/lastevents", nil
     assert_response :success
   end
 
   def test_distributions
+    login_tom
     get "/public/distributions"
     assert_response :success
   end
 
   def test_get_files
+    login_tom
     get "/public/source/home:Iggy/TestPack/myfile"
     assert_response 200
     assert_match "DummyContent", @response.body
@@ -93,6 +97,7 @@ class PublicControllerTest < ActionDispatch::IntegrationTest
   end
 
   def test_binaries
+    login_tom
     wait_for_publisher()
 
     # This URL is used by Frank Karlitschek's kde/gnome/qt-apps.org sites

@@ -1361,7 +1361,7 @@ class SourceControllerTest < ActionDispatch::IntegrationTest
     # anonymous with user-agent set
     get '/source/SourceprotectedProject/pack/my_file', nil, { 'HTTP_USER_AGENT' => 'osc-something' }
     assert_response 401
-    assert_xml_tag :tag => 'status', :attributes => { :code => 'anonymous_user' }
+    assert_xml_tag :tag => 'status', :attributes => { :code => 'authentication_required' }
     # nobody 
     prepare_request_with_user 'adrian_nobody', 'so_alone'
     get '/source/SourceprotectedProject/pack/my_file'

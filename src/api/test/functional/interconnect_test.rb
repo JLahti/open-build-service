@@ -11,6 +11,125 @@ class InterConnectTests < ActionDispatch::IntegrationTest
 
   def test_anonymous_access
     get '/public/lastevents' # OBS 2.1
+    assert_response 401
+    post '/public/lastevents?start=1'
+    assert_response 401
+
+    post '/public/lastevents', nil # OBS 2.3 and later
+    assert_response 401
+    post '/public/lastevents', :start => '1'
+    assert_response 401
+
+    # direct access
+    get '/public/source/BaseDistro'
+    assert_response 401
+    get '/public/source/BaseDistro/_meta'
+    assert_response 401
+    get '/public/source/BaseDistro/_config'
+    assert_response 401
+    get '/public/source/BaseDistro/_pubkey'
+    assert_response 401
+    get '/public/source/BaseDistro/pack1'
+    assert_response 401
+    get '/public/source/BaseDistro/pack1?expand'
+    assert_response 401
+    get '/public/source/BaseDistro/pack1?expand=1'
+    assert_response 401
+    get '/public/source/BaseDistro/pack1?view=cpio'
+    assert_response 401
+    get '/public/source/BaseDistro/pack1/_meta'
+    assert_response 401
+    get '/public/source/BaseDistro/pack1/my_file'
+    assert_response 401
+
+    # direct access to remote instance
+    get '/public/source/RemoteInstance:BaseDistro'
+    assert_response 401
+    get '/public/source/RemoteInstance:BaseDistro/_meta'
+    assert_response 401
+    get '/public/source/RemoteInstance:BaseDistro/_config'
+    assert_response 401
+    get '/public/source/RemoteInstance:BaseDistro/_pubkey'
+    assert_response 401
+    get '/public/source/RemoteInstance:BaseDistro/pack1'
+    assert_response 401
+    get '/public/source/RemoteInstance:BaseDistro/pack1?expand'
+    assert_response 401
+    get '/public/source/RemoteInstance:BaseDistro/pack1?expand=1'
+    assert_response 401
+    get '/public/source/RemoteInstance:BaseDistro/pack1/_meta'
+    assert_response 401
+    get '/public/source/RemoteInstance:BaseDistro/pack1/my_file'
+    assert_response 401
+    get '/public/build/RemoteInstance:home:Iggy/10.2/i586/pack1?view=cpio'
+    assert_response 401
+    get '/public/build/RemoteInstance:home:Iggy/10.2/i586/pack1?view=binaryversions'
+    assert_response 401
+
+    # and is it also working with an OBS proxy in the middle?
+    get '/public/source/RemoteInstance:RemoteInstance:BaseDistro'
+    assert_response 401
+    get '/public/source/RemoteInstance:RemoteInstance:BaseDistro/_meta'
+    assert_response 401
+    get '/public/source/RemoteInstance:RemoteInstance:BaseDistro/_config'
+    assert_response 401
+    get '/public/source/RemoteInstance:RemoteInstance:BaseDistro/_pubkey'
+    assert_response 401
+    get '/public/source/RemoteInstance:RemoteInstance:BaseDistro/pack1'
+    assert_response 401
+    get '/public/source/RemoteInstance:RemoteInstance:BaseDistro/pack1?expand'
+    assert_response 401
+    get '/public/source/RemoteInstance:RemoteInstance:BaseDistro/pack1?expand=1'
+    assert_response 401
+    get '/public/source/RemoteInstance:RemoteInstance:BaseDistro/pack1/_meta'
+    assert_response 401
+    get '/public/source/RemoteInstance:RemoteInstance:BaseDistro/pack1/my_file'
+    assert_response 401
+    get '/public/build/RemoteInstance:RemoteInstance:home:Iggy/10.2/i586/pack1?view=cpio'
+    assert_response 401
+    get '/public/build/RemoteInstance:RemoteInstance:home:Iggy/10.2/i586/pack1?view=binaryversions'
+    assert_response 401
+
+    # public binary access
+    get '/public/build/home:Iggy/10.2/i586/_repository?view=cache'
+    assert_response 401
+    get '/public/build/home:Iggy/10.2/i586/_repository?view=solvstate'
+    assert_response 401
+    get '/public/build/home:Iggy/10.2/i586/_repository?view=binaryversions'
+    assert_response 401
+    get '/public/build/home:Iggy/10.2/i586/pack1'
+    assert_response 401
+    get '/public/build/home:Iggy/10.2/i586/pack1?view=cpio'
+    assert_response 401
+    get '/public/build/home:Iggy/10.2/i586/pack1?view=binaryversions'
+    assert_response 401
+
+    # access to local project with project link to remote
+    get '/public/source/UseRemoteInstance'
+    assert_response 401
+    get '/public/source/UseRemoteInstance/_meta'
+    assert_response 401
+    get '/public/source/UseRemoteInstance/pack1'
+    assert_response 401
+    get '/public/source/UseRemoteInstance/pack1?expand'
+    assert_response 401
+    get '/public/source/UseRemoteInstance/pack1?expand=1'
+    assert_response 401
+    get '/public/source/UseRemoteInstance/pack1/_meta'
+    assert_response 401
+    get '/public/source/UseRemoteInstance/pack1/my_file'
+    assert_response 401
+    get '/public/source/UseRemoteInstance/NotExisting'
+    assert_response 401
+    get '/public/source/UseRemoteInstance/NotExisting/_meta'
+    assert_response 401
+    get '/public/source/UseRemoteInstance/NotExisting/my_file'
+    assert_response 401
+  end
+
+  def test_authenticated_access
+    login_tom
+    get '/public/lastevents' # OBS 2.1
     assert_response :success
     assert_xml_tag :tag => 'events', :attributes => {:sync => 'lost' }
     post '/public/lastevents?start=1'
@@ -135,10 +254,7 @@ class InterConnectTests < ActionDispatch::IntegrationTest
 
   def test_backend_support
     get '/public/source/UseRemoteInstance?package=pack1&package=pack2&view=info'
-    assert_response :success
-    assert_xml_tag( :tag => 'sourceinfo', :attributes => { :package => 'pack1' } )
-    assert_xml_tag( :tag => 'sourceinfo', :attributes => { :package => 'pack2' } )
-    assert_no_xml_tag( :tag => 'sourceinfo', :attributes => { :package => 'pack3' } )
+    assert_response 401
 
     # with credentials
     login_tom
@@ -151,7 +267,7 @@ class InterConnectTests < ActionDispatch::IntegrationTest
 
   def test_backend_post_with_forms
     post '/public/lastevents', 'filter=pack1&filter=pack2'
-    assert_response :success
+    assert_response 401
   end
 
   def test_use_remote_repositories

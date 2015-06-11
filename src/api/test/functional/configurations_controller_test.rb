@@ -7,10 +7,11 @@ class ConfigurationsControllerTest < ActionDispatch::IntegrationTest
 
   def test_show_and_update_configuration
     reset_auth
+    login_tom
+
     get '/public/configuration' # required for anonymous remote webui access
     assert_response :success
 
-    login_tom
     get '/public/configuration.json' # is done by webui from OBS 2.4
     assert_response :success
     json = JSON.parse(@response.body)

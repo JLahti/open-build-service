@@ -18,7 +18,6 @@ class Webui::PackageController < Webui::WebuiController
   before_filter :require_project, :except => [:submit_request, :devel_project]
   before_filter :require_package, :except => [:submit_request, :save_new_link, :save_new, :devel_project ]
   # make sure it's after the require_, it requires both
-  before_filter :require_login, :only => [:branch]
   prepend_before_filter :lockout_spiders, :only => [:revisions, :dependency, :rdiff, :binary, :binaries, :requests]
 
   def show

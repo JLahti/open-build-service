@@ -82,6 +82,7 @@ Patch37:	0037-webui-beautify-the-webui-code-a-bit.patch
 Patch38:	0038-Putting-powerhosts-on-the-top-of-the-worker-list-whe.patch
 Patch39:	0039-Fine-tuning-the-cmake-watcher.patch
 Patch40:	0040-Added-timelimit-in-statistics-latest_updated.patch
+Patch41:	0041-Denying-anonymous-requests-to-webui-api.patch
 BuildRequires:  python-devel
 # make sure this is in sync with the RAILS_GEM_VERSION specified in the
 # config/environment.rb of the various applications.
@@ -388,6 +389,7 @@ obs_project_update is a tool to copy a packages of a project from one obs to ano
 %patch38 -p1
 %patch39 -p1
 %patch40 -p1
+%patch41 -p1
 # drop build script, we require the installed one from own package
 rm -rf src/build
 find . -name .git\* -o -name Capfile -o -name deploy.rb | xargs rm -rf

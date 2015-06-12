@@ -1,12 +1,16 @@
 require_relative '../../test_helper'
 
-class Webui::MainControllerTest < ActionDispatch::IntegrationTest
+class Webui::MainControllerTest < Webui::IntegrationTest
 
   def fetch_sitemap(url)
-    get url
-    assert_response :success
+    login_tom
 
-    sitemap = Xmlhash.parse(response.body)
+    visit url
+    assert_equal 200, page.status_code
+
+    sitemap = Xmlhash.parse(page.body)
+
+    logout
 
     sitemap.elements('sitemap') do |s|
       fetch_sitemap(s['loc'])

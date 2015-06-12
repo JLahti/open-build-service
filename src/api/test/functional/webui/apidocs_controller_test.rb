@@ -4,12 +4,14 @@ class Webui::ApidocsControllerTest < Webui::IntegrationTest
 
   def test_index
     # test relative links
+    login_Iggy
     visit apidocs_path
     first('.request').find(:link, 'Example').click
     assert page.source =~ %r{<title>Open Build Service API</title>}
   end
 
   def test_subpage
+    login_Iggy
     visit apidocs_file_path(filename: 'whatisthis')
     find('#flash-messages').must_have_text "File not found"
 
@@ -18,6 +20,7 @@ class Webui::ApidocsControllerTest < Webui::IntegrationTest
   end
 
   def test_broken_apidocs_setup
+    login_Iggy
     Webui::ApidocsController.any_instance.stubs(:indexpath).returns(nil)
     visit apidocs_path
     page.wont_have_link 'Example'

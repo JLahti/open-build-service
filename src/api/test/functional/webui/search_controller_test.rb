@@ -80,12 +80,14 @@ class Webui::SearchControllerTest < Webui::IntegrationTest
   end
 
   test 'find_search_link_in_footer' do
+    login_tom
     visit root_path
     find(:css, 'div#footer a.search-link').click
     validate_search_page
   end
   
   test 'basic_search_functionality' do
+    login_tom
     visit search_path
     validate_search_page
 
@@ -100,6 +102,7 @@ class Webui::SearchControllerTest < Webui::IntegrationTest
   end
   
   test 'header_search_functionality' do
+    login_tom
     visit root_path
     fill_in 'search', with: 'kdebase'
     page.evaluate_script("$('#global-search-form').get(0).submit()")
@@ -113,6 +116,7 @@ class Webui::SearchControllerTest < Webui::IntegrationTest
   end
 
   test 'search_by_baseurl' do
+    login_tom
     visit root_path + '/search?search_text=obs://build.opensuse.org/openSUSE:Factory/standard/fd6e76cd402226c76e65438a5e3df693-bash'
     find('#flash-messages').must_have_text 'Project not found: openSUSE:Factory'
 
@@ -122,6 +126,7 @@ class Webui::SearchControllerTest < Webui::IntegrationTest
 
   test 'search_for_home_projects' do
   
+    login_tom
     visit search_path
 
     search(
@@ -144,6 +149,7 @@ class Webui::SearchControllerTest < Webui::IntegrationTest
 
   test 'search_for_subprojects' do
 
+    login_tom
     visit search_path
 
     search(
@@ -159,6 +165,7 @@ class Webui::SearchControllerTest < Webui::IntegrationTest
 
   test 'search_for_projects' do
 
+    login_tom
     visit search_path
 
     search(
@@ -174,6 +181,7 @@ class Webui::SearchControllerTest < Webui::IntegrationTest
 
   test 'search_for_packages' do
 
+    login_tom
     visit search_path
 
     search(
@@ -206,6 +214,7 @@ class Webui::SearchControllerTest < Webui::IntegrationTest
 
   test 'search_non_existing_by_name' do
 
+    login_tom
     visit search_path
   
     search(
@@ -218,6 +227,7 @@ class Webui::SearchControllerTest < Webui::IntegrationTest
 
   test 'search_non_existing_by_title' do
 
+    login_tom
     visit search_path
 
     search(
@@ -230,6 +240,7 @@ class Webui::SearchControllerTest < Webui::IntegrationTest
 
   test 'search_non_existing_by_description' do
 
+    login_tom
     visit search_path
 
     search(
@@ -241,6 +252,7 @@ class Webui::SearchControllerTest < Webui::IntegrationTest
 
 
   test 'search_non_existing_by_attributes' do
+    login_tom
     visit search_path
 
     search(
@@ -252,6 +264,7 @@ class Webui::SearchControllerTest < Webui::IntegrationTest
   end
 
   test 'search_for_nothing' do
+    login_tom
     visit search_path
 
     search(
@@ -262,6 +275,7 @@ class Webui::SearchControllerTest < Webui::IntegrationTest
   end
   
   test 'search_russian' do
+    login_tom
     visit search_path
     
     search(
@@ -276,6 +290,7 @@ class Webui::SearchControllerTest < Webui::IntegrationTest
   end
 
   test 'search_in_nothing' do
+    login_tom
     visit search_path
 
     search(
@@ -287,6 +302,7 @@ class Webui::SearchControllerTest < Webui::IntegrationTest
   
   
   test 'search_with_empty_text' do
+    login_tom
     visit search_path
     search(
       :text => '',
@@ -297,6 +313,7 @@ class Webui::SearchControllerTest < Webui::IntegrationTest
 
   test 'search_hidden_as_anonymous' do
 
+    login_tom
     visit search_path
   
     search(

@@ -54,11 +54,13 @@ class Webui::OwnerSearchTest < Webui::IntegrationTest
   end
 
   test "empty_owner_search" do
+    login_Iggy
     visit_owner_search
     search text: "does_not_exist", expect: :no_results
   end
 
   test "basic_owner_search" do
+    login_Iggy
     visit_owner_search
     search text: "package", expect: "success"
     result = search_results.first
@@ -78,6 +80,7 @@ class Webui::OwnerSearchTest < Webui::IntegrationTest
     pkg.develpackage = Package.find_by_project_and_name 'kde4', 'kdelibs'
     pkg.save
 
+    login_Iggy
     visit_owner_search
 
     # Search including devel projects

@@ -6,6 +6,7 @@ class Webui::ProjectControllerTest < Webui::IntegrationTest
   uses_transaction :test_create_project_publish_disabled
 
   test 'project show' do
+    login_tom
     visit project_show_path(project: 'Apache')
     page.must_have_selector '#project_title'
     visit '/project/show?project=My:Maintenance'
@@ -13,6 +14,7 @@ class Webui::ProjectControllerTest < Webui::IntegrationTest
   end
 
   test 'kde4 has two packages' do
+    login_tom
     visit '/project/show?project=kde4'
     find('#packages_info').must_have_text 'Packages (2)'
     within('#packages_info') do
@@ -206,6 +208,7 @@ class Webui::ProjectControllerTest < Webui::IntegrationTest
   test 'list all' do
     use_js
 
+    login_tom
     visit project_list_public_path
     first(:css, 'p.main-project a').click
     # verify it's a project
@@ -247,6 +250,7 @@ class Webui::ProjectControllerTest < Webui::IntegrationTest
   end
 
   test 'check status' do
+    login_tom
     visit project_status_path(project: 'LocalProject')
     page.must_have_text 'Include version updates' # just don't crash
   end
@@ -315,6 +319,7 @@ class Webui::ProjectControllerTest < Webui::IntegrationTest
   test 'buildresults' do
     use_js
 
+    login_tom
     visit project_show_path(project: 'home:Iggy')
     # test reload and wait for the build to finish
     starttime=Time.now
@@ -368,6 +373,7 @@ class Webui::ProjectControllerTest < Webui::IntegrationTest
   end
 
   test 'zypper on webui' do
+    login_tom
     # people do strange things
     visit '/project/repository_state/Apache/content?repository=SLE11'
     flash_message.must_equal "Repository 'content' not found"
@@ -382,10 +388,12 @@ class Webui::ProjectControllerTest < Webui::IntegrationTest
 
     logout
 
-    # anoynmous should not see king's project list
+    # tom should not see king's project list
+    login_tom
     visit project_list_all_path
     page.must_have_link 'kde4'
     page.wont_have_link 'HiddenProject'
+    logout
 
     login_adrian to: project_list_all_path
     # adrian is in test group, which is maintainer so he should see it too

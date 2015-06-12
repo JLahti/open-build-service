@@ -39,12 +39,14 @@ class Webui::GroupControllerTest < Webui::IntegrationTest
   end
 
   test 'invalid group' do
+    login_Iggy
     visit group_show_path('nogroup')
     flash_message.must_equal "Group 'nogroup' does not exist"
     flash_message_type.must_equal :alert
   end
 
   test 'input tokens group' do
+    login_Iggy
     visit group_tokens_path(term: 'nosuch')
     page.status_code.must_equal 404
 
@@ -60,6 +62,7 @@ class Webui::GroupControllerTest < Webui::IntegrationTest
   end
 
   test 'autocomplete group' do
+    login_Iggy
     visit group_autocomplete_path(q: 'nosuch')
     page.status_code.must_equal 404
 

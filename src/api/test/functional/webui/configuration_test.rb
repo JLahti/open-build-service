@@ -9,9 +9,11 @@ class Webui::ConfigurationTest < Webui::IntegrationTest
     assert Architecture.find_by_name( "i586" ).available
     assert_equal Architecture.find_by_name( "s390" ).available, false
 
+    login_tom
     visit configuration_path
     flash_message_type.must_equal :alert
     flash_message.must_equal 'Requires admin privileges'
+    logout
 
     login_king to: configuration_path
     title = 'Cool Build Service'

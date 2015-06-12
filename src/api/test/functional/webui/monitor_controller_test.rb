@@ -5,6 +5,7 @@ class Webui::MonitorControllerTest < Webui::IntegrationTest
   uses_transaction :test_reload_monitor
 
   def test_monitor
+    login_Iggy
     visit monitor_path
     assert find(:id, "header-logo")
 
@@ -32,6 +33,7 @@ class Webui::MonitorControllerTest < Webui::IntegrationTest
       end
     end
 
+    login_Iggy
     visit monitor_path
     select 'x86_64', from: 'architecture_display'
     select '1 year', from: 'time_display'

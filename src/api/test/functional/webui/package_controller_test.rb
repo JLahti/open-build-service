@@ -27,12 +27,14 @@ class Webui::PackageControllerTest < Webui::IntegrationTest
   end
 
   test 'show invalid package' do
+    login_tom
     visit package_show_path(package: 'TestPok', project: 'home:Iggy')
     page.status_code.must_equal 404
     flash_message.must_equal 'Package "TestPok" not found in project "home:Iggy"'
   end
 
   test 'show invalid project' do
+    login_tom
     visit package_show_path(package: 'TestPok', project: 'home:Oggy')
     page.status_code.must_equal 404
     flash_message.must_equal 'Project not found: home:Oggy'
@@ -120,11 +122,13 @@ class Webui::PackageControllerTest < Webui::IntegrationTest
   end
 
   test 'diff is empty' do
+    login_Iggy
     visit '/package/rdiff/BaseDistro2.0/pack2.linked?opackage=pack2&oproject=BaseDistro2.0'
     find('#content').must_have_text 'No source changes!'
   end
 
   test 'revision is empty' do
+    login_Iggy
     visit '/package/rdiff/BaseDistro2.0/pack2.linked?opackage=pack2&oproject=BaseDistro2.0&rev='
     flash_message_type.must_equal :alert
     flash_message.must_equal 'Error getting diff: revision is empty'
@@ -169,6 +173,7 @@ class Webui::PackageControllerTest < Webui::IntegrationTest
   test 'download logfile' do
     use_js
 
+    login_Iggy
     visit package_show_path(package: 'TestPack', project: 'home:Iggy')
     # test reload and wait for the build to finish
     starttime=Time.now

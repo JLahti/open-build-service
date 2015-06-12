@@ -224,7 +224,7 @@ class Webui::RequestControllerTest < Webui::IntegrationTest
   end
 
   test 'request 4 can expand' do
-    # no login required
+    login_tom
     visit request_show_path(4)
     within '#diff_headline_myfile_diff_action_0_submit_0_0' do
       page.wont_have_text '+DummyContent'
@@ -251,6 +251,7 @@ class Webui::RequestControllerTest < Webui::IntegrationTest
   end
 
   def visit_requests
+    login_tom
     visit request_show_path(1)
     page.must_have_text 'Request 1'
 

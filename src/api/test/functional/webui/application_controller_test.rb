@@ -46,6 +46,7 @@ class Webui::ApplicationControllerTest < Webui::IntegrationTest
 
   test 'bento theme can be configured' do
     CONFIG['theme'] = 'bento'
+    login_Iggy
     visit root_path
     # without javascript there is no menu but just links
     within '#header' do

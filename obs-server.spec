@@ -37,7 +37,7 @@ Group:          Productivity/Networking/Web/Utilities
 %if 0%{?suse_version} < 1210 && 0%{?suse_version:1}
 %endif
 Version: 2.5.4.skytree46
-Release: 1
+Release: 2
 Url:            http://en.opensuse.org/Build_Service
 BuildRoot:      %{_tmppath}/%{name}-%{version}-build
 # Sources are retrieved using script which is attached as Source2
@@ -81,9 +81,11 @@ Patch36:	0036-Fix-LDAP-first-login.patch
 Patch37:	0037-webui-beautify-the-webui-code-a-bit.patch
 Patch38:	0038-Putting-powerhosts-on-the-top-of-the-worker-list-whe.patch
 Patch39:	0039-Fine-tuning-the-cmake-watcher.patch
-Patch40:	0040-Added-timelimit-in-statistics-latest_updated.patch
+Patch40:	0040-Shaving-off-some-extra-from-StatisticsCalculations-g.patch
 Patch41:	0041-Denying-anonymous-requests-to-API.patch
 Patch42:	0042-Denying-anonymous-requests-to-webui.patch
+Patch43:	0043-api-Added-timelimit-in-statistics-latest_updated.patch
+Patch44:	0044-api-Added-filtering-by-project-or-package-name.patch
 BuildRequires:  python-devel
 # make sure this is in sync with the RAILS_GEM_VERSION specified in the
 # config/environment.rb of the various applications.
@@ -392,6 +394,8 @@ obs_project_update is a tool to copy a packages of a project from one obs to ano
 %patch40 -p1
 %patch41 -p1
 %patch42 -p1
+%patch43 -p1
+%patch44 -p1
 # drop build script, we require the installed one from own package
 rm -rf src/build
 find . -name .git\* -o -name Capfile -o -name deploy.rb | xargs rm -rf
@@ -885,6 +889,12 @@ chown %{apache_user}:%{apache_group} /srv/www/obs/api/log/production.log
 %defattr(-,root,root)
 /usr/bin/obs_productconvert
 /usr/lib/obs/server/bs_productconvert
+
+%files -n obs-devel
+%defattr(-,root,root)
+%_docdir/README.devel
+
+s_productconvert
 
 %files -n obs-devel
 %defattr(-,root,root)

@@ -84,8 +84,8 @@ class RequestControllerTest < ActionDispatch::IntegrationTest
                    'repository' =>
                        { 'name' => '10.2',
                          'arch' =>
-                             [{ 'arch' => 'i586', 'result' => 'unknown' },
-                              { 'arch' => 'x86_64', 'result' => 'unknown' }] } }, node)
+                             [{ 'arch' => 'i586', 'result' => 'disabled' },
+                              { 'arch' => 'x86_64', 'result' => 'disabled' }] } }, node)
 
     # create more history entries decline, reopen and finally accept it
     post "/request/#{id}?cmd=changestate&newstate=declined&comment=notgood"

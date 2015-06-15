@@ -1076,12 +1076,13 @@ class Project < ActiveRecord::Base
       pkg_to_enable.enable_for_repository(repoName) if pkg_to_enable
     end
     # take over flags, but explicit disable publishing by default and enable building. Ommiting also lock or we can not create packages
+    # Skytree: we want to take over all the flags. Except for the lock
     project.flags.each do |f|
-      unless %w(build publish lock).include?(f.flag)
+      unless %w(lock).include?(f.flag)
         self.flags.create(status: f.status, flag: f.flag, architecture: f.architecture, repo: f.repo)
       end
     end
-    self.flags.create(:status => 'disable', :flag => 'publish') unless self.flags.find_by_flag_and_status( 'publish', 'disable' )
+    # Skytree: self.flags.create(:status => 'disable', :flag => 'publish') unless self.flags.find_by_flag_and_status( 'publish', 'disable' )
   end
 
   def open_requests_with_project_as_source_or_target

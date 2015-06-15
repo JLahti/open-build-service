@@ -37,7 +37,7 @@ Group:          Productivity/Networking/Web/Utilities
 %if 0%{?suse_version} < 1210 && 0%{?suse_version:1}
 %endif
 Version: 2.5.4.skytree46
-Release: 2
+Release: 3
 Url:            http://en.opensuse.org/Build_Service
 BuildRoot:      %{_tmppath}/%{name}-%{version}-build
 # Sources are retrieved using script which is attached as Source2
@@ -86,6 +86,7 @@ Patch41:	0041-Denying-anonymous-requests-to-API.patch
 Patch42:	0042-Denying-anonymous-requests-to-webui.patch
 Patch43:	0043-api-Added-timelimit-in-statistics-latest_updated.patch
 Patch44:	0044-api-Added-filtering-by-project-or-package-name.patch
+Patch45:	0045-Copy-over-all-the-repository-flags-when-branching.patch
 BuildRequires:  python-devel
 # make sure this is in sync with the RAILS_GEM_VERSION specified in the
 # config/environment.rb of the various applications.
@@ -396,6 +397,7 @@ obs_project_update is a tool to copy a packages of a project from one obs to ano
 %patch42 -p1
 %patch43 -p1
 %patch44 -p1
+%patch45 -p1
 # drop build script, we require the installed one from own package
 rm -rf src/build
 find . -name .git\* -o -name Capfile -o -name deploy.rb | xargs rm -rf

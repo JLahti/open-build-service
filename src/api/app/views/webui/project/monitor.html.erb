@@ -104,6 +104,13 @@
         <% @packagenames.each do |packname| -%>
           <tr>
             <td class="nowrap">
+              <% if @localpackages and not @localpackages.has_key? packname -%>
+		<%= sprite_tag 'package_link', title: '' %>
+              <% else -%>
+                <% if @overridepackages and @overridepackages.has_key? packname -%>
+		  <%= sprite_tag 'package_edit', title: '' %>
+                <% end -%>
+              <% end -%>
               <%= link_to elide(packname, 40), :controller => "package", :action => "show",
                 :package => packname, :project => @project.to_s %>
             </td>

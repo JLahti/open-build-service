@@ -1457,6 +1457,16 @@ class Webui::ProjectController < Webui::WebuiController
       @project.api_obj.packages.each do |p|
         @localpackages[p[:name]] = 1
       end
+
+      @overridepackages = {}
+      # At the moment no support for remote linked projects
+      lprjs = @project.api_obj.linkedprojects.find_all {|p| !p[:linked_db_project_id].nil?}
+      lprjs.each do |pr|
+        Project.find(pr.linked_db_project_id).packages.each do |pk|
+          @overridepackages[pk[:name]] = 1
+        end
+      end
+
     end
   end
  

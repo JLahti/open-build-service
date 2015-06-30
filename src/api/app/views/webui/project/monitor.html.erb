@@ -15,6 +15,25 @@
   <%= form_tag({:controller => 'project', :action => 'monitor'}, :method => :get) do %>
     <div id='filter_settings'>
       <%= submit_tag 'Filter:'%>
+      <span class="strong filterlink" id="sourcelink">Source origin <%= image_tag 'arrow.png' %></span>
+      <div id="sourcebox" class="filterbox hidden">
+        <a class="filterbox_close" href="#" id="sourcebox_close">[x]</a>
+        <ul>
+          <li class="nowrap filteritem" id="li_local">
+            <%= check_box_tag "local", 1, @source_filter.include?("local"), :class => "sourceitem" %>
+            <label for="local" class="strong">Local</label>
+          </li>
+          <li class="nowrap filteritem" id="li_linked">
+            <%= check_box_tag "linked", 1, @source_filter.include?("linked"), :class => "sourceitem" %>
+            <label for="linked" class="strong">Linked</label>
+          </li>
+          <li class="nowrap filteritem" id="li_override">
+            <%= check_box_tag "override", 1, @source_filter.include?("override"), :class => "sourceitem" %>
+            <label for="override" class="strong">Override</label>
+          </li>
+        </ul>
+        <a href="#" id="sourcebox_all" class="filterbox_all">Select all</a><a href="#" id="skytreebox_none" class="filterbox_none">Select none</a>
+      </div>
       <span class="strong filterlink" id="statuslink">Status <%= image_tag 'arrow.png' %></span>
       <div id="statusbox" class="filterbox hidden">
         <a class="filterbox_close" href="#" id="statusbox_close">[x]</a>

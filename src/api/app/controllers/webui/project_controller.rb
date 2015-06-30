@@ -894,6 +894,19 @@ class Webui::ProjectController < Webui::WebuiController
     ## Filter for PackageNames ####
     @packagenames.reject! {|name| not filter_matches?(name,@name_filter) } if not @name_filter.blank?
 
+    ## Filter for local packages ####
+    unless @source_filter.include? "local"
+      @packagenames.reject! {|name|
+        (@localpackages and @localpackages.has_key? name) and not (@overridepackages and @overridepackages.has_key? name)  
+      }
+    end
+
+    ## Filter for linked builds ####
+    @packagenames.reject! {|name| @localpackages and not @localpackages.has_key? name } unless @source_filter.include? "linked"
+
+    ## Filter for override packages ####
+    @packagenames.reject! {|name| @overridepackages and @overridepackages.has_key? name } unless @source_filter.include? "override"
+
     packagename_hash = Hash.new
     @packagenames.each { |p| packagename_hash[p.to_s] = 1 }
 
@@ -955,6 +968,17 @@ class Webui::ProjectController < Webui::WebuiController
         @repo_filter << s
       end
     }
+
+    @source_filter = []
+    if defaults || (params.has_key?("local") && params["local"])
+        @source_filter << "local"
+    end
+    if defaults || (params.has_key?("linked") && params["linked"])
+        @source_filter << "linked"
+    end
+    if defaults || (params.has_key?("override") && params["override"])
+        @source_filter << "override"
+    end
   end
 
   def filter_matches?(input,filter_string)
@@ -1463,7 +1487,9 @@ class Webui::ProjectController < Webui::WebuiController
       lprjs = @project.api_obj.linkedprojects.find_all {|p| !p[:linked_db_project_id].nil?}
       lprjs.each do |pr|
         Project.find(pr.linked_db_project_id).packages.each do |pk|
-          @overridepackages[pk[:name]] = 1
+          if @localpackages.has_key? pk[:name]
+  	    @overridepackages[pk[:name]] = 1
+	  end
         end
       end
 

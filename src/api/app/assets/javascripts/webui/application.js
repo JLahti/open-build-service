@@ -125,24 +125,46 @@ function project_monitor_ready() {
     /* $(document).click(function() { $(".filterbox").hide(); });
      $(".filteritem input").click(function() { toggleCheck($(this)); toggleCheck($(this)); return true; });
      $(".filteritem").click(function() { toggleCheck($(this).find("input:first")); return false; }); */
+    $("#sourcelink").click(function () {
+        toggleBox($(this), "#sourcebox");
+        $("#statusbox").hide();
+        $("#archbox").hide();
+        $("#repobox").hide();
+        return false;
+    })
     $("#statuslink").click(function () {
         toggleBox($(this), "#statusbox");
+        $("#sourcebox").hide();
         $("#archbox").hide();
         $("#repobox").hide();
         return false;
     })
     $("#archlink").click(function () {
         toggleBox($(this), "#archbox");
+        $("#sourcebox").hide();
         $("#statusbox").hide();
         $("#repobox").hide();
         return false;
     })
     $("#repolink").click(function () {
         toggleBox($(this), "#repobox");
+        $("#sourcebox").hide();
         $("#archbox").hide();
         $("#statusbox").hide();
         return false;
     })
+
+    $("#sourcebox_close").click(function () {
+        $("#sourcebox").hide();
+    });
+    $("#sourcebox_all").click(function () {
+        $(".sourceitem").attr("checked", "checked");
+        return false;
+    });
+    $("#sourcebox_none").click(function () {
+        $(".sourceitem").attr("checked", false);
+        return false;
+    });
 
     $("#statusbox_close").click(function () {
         $("#statusbox").hide();

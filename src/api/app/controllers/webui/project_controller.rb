@@ -970,13 +970,19 @@ class Webui::ProjectController < Webui::WebuiController
     }
 
     @source_filter = []
-    if defaults || (params.has_key?("local") && params["local"])
+    if defaults ||
+      (params.has_key?("local") && params["local"]) ||
+      (params.has_key?("src_defaults") && params["src_defaults"])
         @source_filter << "local"
     end
-    if defaults || (params.has_key?("linked") && params["linked"])
+    if defaults ||
+      (params.has_key?("linked") && params["linked"]) ||
+      (params.has_key?("src_defaults") && params["src_defaults"])
         @source_filter << "linked"
     end
-    if defaults || (params.has_key?("override") && params["override"])
+    if defaults ||
+      (params.has_key?("override") && params["override"]) ||
+      (params.has_key?("src_defaults") && params["src_defaults"])
         @source_filter << "override"
     end
   end

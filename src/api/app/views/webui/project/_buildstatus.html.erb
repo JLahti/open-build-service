@@ -28,7 +28,7 @@
                   <td style="width: 1%">
                     <% counts.each do |code, count| %>
                         <%= link_to("#{code}: #{count}", {:action => :monitor, valid_xml_id('repo_' + repo) => 1,
-                                                          'arch_' + arch => 1, :project => params[:project], code => 1, :defaults => 0}, :rel => 'nofollow', :class => 'nowrap') %>
+                                                          'arch_' + arch => 1, :project => params[:project], code => 1, :defaults => 0, :src_defaults => 1}, :rel => 'nofollow', :class => 'nowrap') %>
                     <% end %>
                   </td>
                 </tr>

@@ -159,7 +159,7 @@ class CodeQualityTest < ActiveSupport::TestCase
       'Webui::ProjectController#call_diststats' => 57.81, 
       'Webui::ProjectController#check_devel_package_status' => 81.95, 
       'Webui::ProjectController#monitor' => 73.65,
-      'Webui::ProjectController#monitor_set_filter' => 80.14,  
+      'Webui::ProjectController#monitor_set_filter' => 99.3,  
       'Webui::ProjectController#save_new' => 90,
       'Webui::ProjectController#save_targets' => 123.29,
       'Webui::ProjectController#status' => 58.09,

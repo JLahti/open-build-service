@@ -36,7 +36,7 @@ License:        GPL-2.0 and GPL-3.0
 Group:          Productivity/Networking/Web/Utilities
 %if 0%{?suse_version} < 1210 && 0%{?suse_version:1}
 %endif
-Version: 2.5.4.skytree47
+Version: 2.5.4.skytree61
 Release: 1
 Url:            http://en.opensuse.org/Build_Service
 BuildRoot:      %{_tmppath}/%{name}-%{version}-build
@@ -91,6 +91,8 @@ Patch46:	0046-Revert-Revert-webui-Hotfix-logfile-links-on-project-.patch
 Patch47:	0047-Removed-the-disabling-of-live-build-log-for-linked-b.patch
 Patch48:	0048-Sorting-out-overriding-packages-when-using-project-l.patch
 Patch49:	0049-Added-source-origin-filtering-in-project-monitor-pag.patch
+Patch50:	0050-Fixing-the-repository-download-links.patch
+Patch51:	0051-Fixing-the-build-status-monitor-links.patch
 BuildRequires:  python-devel
 # make sure this is in sync with the RAILS_GEM_VERSION specified in the
 # config/environment.rb of the various applications.
@@ -406,6 +408,8 @@ obs_project_update is a tool to copy a packages of a project from one obs to ano
 %patch47 -p1
 %patch48 -p1
 %patch49 -p1
+%patch50 -p1
+%patch51 -p1
 # drop build script, we require the installed one from own package
 rm -rf src/build
 find . -name .git\* -o -name Capfile -o -name deploy.rb | xargs rm -rf

@@ -23,6 +23,9 @@ class SourceController < ApplicationController
 
   before_action :require_valid_project_name, except: [:index, :lastevents, :lastevents_public, :global_command]
 
+  skip_before_action :extract_user, only: [:show_project_pubkey]
+  skip_before_action :require_login, only: [:show_project_pubkey]
+
   class NoPermissionForDeleted < APIException
     setup 403, 'only admins can see deleted projects'
   end

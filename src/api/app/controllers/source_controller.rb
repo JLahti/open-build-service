@@ -186,7 +186,7 @@ class SourceController < ApplicationController
     # init and validation
     #--------------------
     valid_commands=%w(undelete showlinked remove_flag set_flag createpatchinfo createkey extendkey copy
-                      createmaintenanceincident unlock release addchannels)
+                      createmaintenanceincident unlock release addchannels bootstrap)
     if params[:cmd]
       raise IllegalRequest.new 'invalid_command' unless valid_commands.include?(params[:cmd])
       command = params[:cmd]
@@ -207,6 +207,8 @@ class SourceController < ApplicationController
     elsif command == 'showlinked' or User.current.can_modify_project?(@project)
       # command: showlinked, set_flag, remove_flag, ...?
       dispatch_command(:project_command, command)
+    elsif command == 'bootstrap' and User.current.is_admin?
+      return dispatch_command(:project_command, command)
     else
       raise CmdExecutionNoPermission.new "no permission to execute command '#{command}'"
     end
@@ -1290,6 +1292,22 @@ class SourceController < ApplicationController
 
     render_ok data: Patchinfo.new.create_patchinfo(params[:project], params[:name],
                                                    comment: params[:comment], force: params[:force])
+  end
+
+  # bootstrap a project repo
+  # POST /source/<project>?cmd=bootstrap&repo=REPO&arch=ARCH&url=URL
+  def project_command_bootstrap
+    require 'open3'
+    required_parameters :repo, :arch, :url
+
+    out, err, st = Open3.capture3 'sudo', '-n',
+          '/srv/www/obs/api/script/bootstrap', params[:project], params[:repo], params[:arch], params[:url]
+    if st.exitstatus == 0
+      render_ok
+    else
+      render_error :status => 400, :errorcode => 'bootstrapping_failure',
+          :message => out + err
+    end
   end
 
   # POST /source/<project>/<package>?cmd=updatepatchinfo

@@ -1,0 +1,21 @@
+#!/bin/sh -e
+
+project="$1"
+repo="$2"
+arch="$3"
+url="$4"
+
+BUILD_DIR_BASE=/srv/obs/build
+BUILD_DIR="$BUILD_DIR_BASE/$project/$repo/$arch/:full"
+
+[ ! -d "$BUILD_DIR" ] && mkdir "$BUILD_DIR"
+
+function finish {
+    systemctl start obsscheduler
+    obs_admin --rescan-repository "$project" "$repo" "$arch"
+}
+
+trap finish EXIT
+systemctl stop obsscheduler
+wget -O- "$url" | tar xj -C "$BUILD_DIR"
+chown -R obsrun.obsrun "$BUILD_DIR"

@@ -7996,7 +7996,7 @@ my $dispatches = [
   '/request/$id:num' => \&getrequest, # just required for migration into api
 
   # notifications from publisher/repserver - CGI
-  'POST:/notify/$_type: *:?' => \&external_notification,
+  'POST:/notify/$_type: *:?' => \&notify_plugins,
   # called from the API to notify hermes/rabbitmq
   'POST:/notify_plugins/$_type:' => \&notify_plugins,
 

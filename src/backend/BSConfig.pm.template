@@ -67,8 +67,12 @@ our $repodownload = "http://$hostname/repositories";
 #our $hermesserver = "http://$hostname/hermes";
 #our $hermesnamespace = "OBS";
 #
+# Slack notifications
+#our $slack_webhook = "https://hooks.slack.com/services/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";
+#our $obs_ui = "https://copernicus-build.integration.nomovok.info";
+#our $notification_prj_filter = qr/^(lm-common|lm-ivios|lm-autoos|lm-ptt|pallas)/;
 # Notification Plugin, multiple plugins supported, separated by space
-#our $notification_plugin = "notify_hermes notify_rabbitmq";
+#our $notification_plugin = "notify_slack";
 #
 
 # For the workers only, it is possible to define multiple repository servers here.

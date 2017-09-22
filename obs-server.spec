@@ -498,6 +498,7 @@ chmod 0755 $RPM_BUILD_ROOT/usr/sbin/obs_serverstatus
 cd ../src
 mkdir -p $RPM_BUILD_ROOT/srv/www/obs/
 cp -a api $RPM_BUILD_ROOT/srv/www/obs/api
+chmod a+x $RPM_BUILD_ROOT/srv/www/obs/api/script/*
 mkdir -p $RPM_BUILD_ROOT/srv/www/obs/api/log
 mkdir -p $RPM_BUILD_ROOT/srv/www/obs/api/tmp
 touch $RPM_BUILD_ROOT/srv/www/obs/api/log/production.log
